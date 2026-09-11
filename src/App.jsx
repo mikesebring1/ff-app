@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -23,7 +22,35 @@ import { apiConfig, adminApiCall, clearPollingStatusCache, isPollingActive } fro
 import { useTeams } from './hooks/useTeams'
 import { useNetworkStatus } from './hooks/useNetworkStatus'
 import { useCurrentWeek } from './hooks/useCurrentWeek'
-import { queryClient } from './lib/query-client'
+
+const ADMIN_ACTIONS = [
+  {
+    label: 'Sync Historical Data',
+    endpoint: apiConfig.endpoints.syncHistorical,
+    successLog: 'Historical sync started',
+    successAlert: 'Historical data sync started!',
+    failureLog: 'Failed to sync historical data',
+    failureAlert: 'Failed to start historical sync'
+  },
+  {
+    label: 'Calculate Playoffs',
+    endpoint: apiConfig.endpoints.calculatePlayoffs,
+    successLog: 'Playoff simulation started',
+    successAlert: 'Playoff simulation started!',
+    failureLog: 'Failed to calculate playoffs',
+    failureAlert: 'Failed to start playoff simulation'
+  },
+  {
+    label: 'Fetch Players Data',
+    endpoint: apiConfig.endpoints.fetchPlayers,
+    method: 'GET',
+    successLog: 'Players data fetched',
+    successAlert: 'Players data fetched successfully!',
+    failureLog: 'Failed to fetch players',
+    failureAlert: 'Failed to fetch players data',
+    logFullResponse: true
+  }
+]
 
 function App() {
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -39,9 +66,6 @@ function App() {
   const [isAdmin, setIsAdmin] = useState(() => {
     return localStorage.getItem('isAdmin') === 'true'
   })
-  const [_adminApiKey, setAdminApiKey] = useState(() => {
-    return localStorage.getItem('adminApiKey') || ''
-  })
 
   // Fetch team names dynamically from API
   const { teams, loading: teamsLoading, error: teamsError } = useTeams()
@@ -50,7 +74,7 @@ function App() {
   const { isOnline, isSlowConnection } = useNetworkStatus()
   
   // Get current week info for playoff tab visibility
-  const { currentWeek, isPlayoffWeek } = useCurrentWeek()
+  const { currentWeek } = useCurrentWeek()
   
   // PWA update handling
   const [updateAvailable, setUpdateAvailable] = useState(false)
@@ -70,11 +94,49 @@ function App() {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     const isAdminRequest = urlParams.get('admin') === 'true'
-    
-    if (isAdminRequest && !isAdmin) {
-      handleAdminAuthentication()
+
+    if (!isAdminRequest || isAdmin) {
+      return
     }
-  }, [])
+
+    const authenticateAdmin = async () => {
+      const apiKey = prompt('Enter admin API key:')
+      if (!apiKey) return
+
+      try {
+        console.log('Attempting admin validation with URL:', apiConfig.endpoints.adminValidate)
+
+        const response = await fetch(apiConfig.endpoints.adminValidate, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Admin-Key': apiKey
+          },
+          body: JSON.stringify({ action: 'validate' })
+        })
+
+        console.log('Response status:', response.status)
+        console.log('Response headers:', response.headers)
+
+        if (response.status === 200) {
+          setIsAdmin(true)
+          localStorage.setItem('isAdmin', 'true')
+          localStorage.setItem('adminApiKey', apiKey)
+          alert('Admin access granted!')
+          window.history.replaceState({}, document.title, window.location.pathname)
+        } else {
+          const errorText = await response.text()
+          console.error('API response error:', errorText)
+          alert(`Invalid API key (Status: ${response.status})`)
+        }
+      } catch (error) {
+        console.error('Admin validation error:', error)
+        alert(`Unable to validate admin access: ${error.message}`)
+      }
+    }
+
+    authenticateAdmin()
+  }, [isAdmin])
 
   // Handle dark mode
   useEffect(() => {
@@ -132,48 +194,26 @@ function App() {
     }
   }
 
-  const handleAdminAuthentication = async () => {
-    const apiKey = prompt('Enter admin API key:')
-    if (!apiKey) return
+  const runAdminAction = async (action) => {
+    if (!isAdmin) {
+      console.log('Admin access required')
+      return
+    }
 
     try {
-      console.log('Attempting admin validation with URL:', apiConfig.endpoints.adminValidate)
-      
-      // Validate API key against backend
-      const response = await fetch(apiConfig.endpoints.adminValidate, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Admin-Key': apiKey
-        },
-        body: JSON.stringify({ action: 'validate' })
+      const response = await adminApiCall(action.endpoint, {
+        method: action.method || 'POST'
       })
-
-      console.log('Response status:', response.status)
-      console.log('Response headers:', response.headers)
-
-      if (response.status === 200) {
-        setIsAdmin(true)
-        setAdminApiKey(apiKey)
-        localStorage.setItem('isAdmin', 'true')
-        localStorage.setItem('adminApiKey', apiKey)
-        alert('Admin access granted!')
-        
-        // Clean up URL
-        window.history.replaceState({}, document.title, window.location.pathname)
-      } else {
-        const errorText = await response.text()
-        console.error('API response error:', errorText)
-        alert(`Invalid API key (Status: ${response.status})`)
-      }
+      console.log(`${action.successLog}:`, action.logFullResponse ? response : response.message)
+      alert(action.successAlert)
     } catch (error) {
-      console.error('Admin validation error:', error)
-      alert(`Unable to validate admin access: ${error.message}`)
+      console.error(`${action.failureLog}:`, error)
+      alert(action.failureAlert)
     }
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <>
       <div className="min-h-screen bg-background">
       {/* Menu button in absolute top-right corner */}
       <div className="absolute top-8 right-8">
@@ -246,7 +286,7 @@ function App() {
                   <span>Live Updates</span>
                   <Switch
                     checked={isPolling}
-                    onCheckedChange={async (checked) => {
+                    onCheckedChange={async () => {
                       if (isAdmin) {
                         try {
                           const response = await adminApiCall(apiConfig.endpoints.pollingToggle, {
@@ -267,72 +307,18 @@ function App() {
                     onClick={(e) => e.stopPropagation()}
                   />
                 </DropdownMenuItem>
-                <DropdownMenuItem 
-                  onClick={async (e) => {
-                    e.preventDefault()
-                    if (isAdmin) {
-                      try {
-                        const response = await adminApiCall(apiConfig.endpoints.syncHistorical, {
-                          method: 'POST'
-                        })
-                        console.log('Historical sync started:', response.message)
-                        alert('Historical data sync started!')
-                      } catch (error) {
-                        console.error('Failed to sync historical data:', error)
-                        alert('Failed to start historical sync')
-                      }
-                    } else {
-                      console.log('Admin access required')
-                    }
-                  }}
-                  className={isAdmin ? 'cursor-pointer' : 'text-muted-foreground cursor-default'}
-                >
-                  Sync Historical Data
-                </DropdownMenuItem>
-                <DropdownMenuItem 
-                  onClick={async (e) => {
-                    e.preventDefault()
-                    if (isAdmin) {
-                      try {
-                        const response = await adminApiCall(apiConfig.endpoints.calculatePlayoffs, {
-                          method: 'POST'
-                        })
-                        console.log('Playoff simulation started:', response.message)
-                        alert('Playoff simulation started!')
-                      } catch (error) {
-                        console.error('Failed to calculate playoffs:', error)
-                        alert('Failed to start playoff simulation')
-                      }
-                    } else {
-                      console.log('Admin access required')
-                    }
-                  }}
-                  className={isAdmin ? 'cursor-pointer' : 'text-muted-foreground cursor-default'}
-                >
-                  Calculate Playoffs
-                </DropdownMenuItem>
-                <DropdownMenuItem 
-                  onClick={async (e) => {
-                    e.preventDefault()
-                    if (isAdmin) {
-                      try {
-                        const response = await adminApiCall(apiConfig.endpoints.fetchPlayers, {
-                          method: 'GET'
-                        })
-                        console.log('Players data fetched:', response)
-                        alert('Players data fetched successfully!')
-                      } catch (error) {
-                        console.error('Failed to fetch players:', error)
-                        alert('Failed to fetch players data')
-                      }
-                    } else {
-                      console.log('Admin access required')
-                    }
-                  }}
-                  className={isAdmin ? 'cursor-pointer' : 'text-muted-foreground cursor-default'}
-                >
-                  Fetch Players Data
-                </DropdownMenuItem>
+                {ADMIN_ACTIONS.map((action) => (
+                  <DropdownMenuItem
+                    key={action.label}
+                    onClick={(event) => {
+                      event.preventDefault()
+                      runAdminAction(action)
+                    }}
+                    className={isAdmin ? 'cursor-pointer' : 'text-muted-foreground cursor-default'}
+                  >
+                    {action.label}
+                  </DropdownMenuItem>
+                ))}
               </DropdownMenuSubContent>
             </DropdownMenuSub>
           </DropdownMenuContent>
@@ -391,7 +377,7 @@ function App() {
       </div>
     </div>
     <ReactQueryDevtools initialIsOpen={false} />
-    </QueryClientProvider>
+    </>
   )
 }
 

@@ -22,8 +22,8 @@ import { useTeamScoreAnimation } from '../hooks/useScoreAnimation'
 
 
 // Component for animated team total scores
-function AnimatedTeamScore({ teamId, points, projectedTotal }) {
-  const { animationClasses } = useTeamScoreAnimation(points, teamId)
+function AnimatedTeamScore({ points, projectedTotal }) {
+  const { animationClasses } = useTeamScoreAnimation(points)
   
   return (
     <div className={`font-medium ${animationClasses} rounded px-1`}>
@@ -186,7 +186,6 @@ export default function WeeklyStandings({ selectedTeam, onTeamSelect }) {
                         </div>
                       </div>
                       <AnimatedTeamScore 
-                        teamId={team.id}
                         points={team.points}
                         projectedTotal={team.projectedTotal}
                       />

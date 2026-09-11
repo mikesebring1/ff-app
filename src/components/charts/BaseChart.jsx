@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts"
-import { useIsMobile } from '@/hooks/useIsMobile'
 import { Button } from "@/components/ui/button"
 
 const buildChartConfig = (teamNames) => {
@@ -59,45 +58,19 @@ export default function BaseChart({
     return "var(--muted)"
   }
 
-  if (loading) {
-    return (
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>{title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8 text-muted-foreground">
-            Loading chart data...
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
+  const statusMessage = loading
+    ? 'Loading chart data...'
+    : error || (!chartData.length ? 'No chart data available yet' : null)
 
-  if (error) {
+  if (statusMessage) {
     return (
       <Card className="mt-6">
         <CardHeader>
           <CardTitle>{title}</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8 text-red-500">
-            {error}
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  if (!chartData.length) {
-    return (
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>{title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8 text-muted-foreground">
-            No chart data available yet
+          <div className={`text-center py-8 ${error ? 'text-red-500' : 'text-muted-foreground'}`}>
+            {statusMessage}
           </div>
         </CardContent>
       </Card>

@@ -9,15 +9,11 @@ It uses shrinkage-based sampling for more realistic early-season predictions.
 import json
 import os
 import logging
-from datetime import datetime, timezone
 from collections import defaultdict
 import requests
 import boto3
 from decimal import Decimal
 import numpy as np
-
-# Import shared utilities
-from ff_utils.dynamodb import DecimalEncoder
 
 # Configure logging
 logger = logging.getLogger()
@@ -51,8 +47,6 @@ def lambda_handler(event, context):
                 'details': str(e)
             })
         }
-
-# DecimalEncoder now imported from shared utilities
 
 class MonteCarloService:
     def __init__(self):
@@ -88,7 +82,7 @@ class MonteCarloService:
             # Default to current assumptions
             return '2025', 1
 
-    def get_team_mapping(self, season):
+    def get_team_mapping(self):
         """Get team ID to name mapping"""
         try:
             # Try to get cached user data
@@ -353,7 +347,7 @@ class MonteCarloService:
                 team_name = team_names.get(team_id, f"Team {team_id}")
                 
                 # Update the existing overall standings record
-                response = self.overall_standings_table.update_item(
+                self.overall_standings_table.update_item(
                     Key={
                         'season': season,
                         'team_id': team_id
@@ -380,7 +374,7 @@ class MonteCarloService:
             season, current_week = self.get_nfl_state()
             
             # Get team mapping
-            team_names = self.get_team_mapping(season)
+            team_names = self.get_team_mapping()
             
             # Get completed weeks data
             weeks_data = self.get_completed_weeks_data(season, current_week)

@@ -16,6 +16,13 @@ dynamodb = boto3.resource('dynamodb')
 ecs = boto3.client('ecs')
 lambda_client = boto3.client('lambda')
 
+def admin_required_response():
+    return {
+        'statusCode': 401,
+        'headers': get_cors_headers(),
+        'body': json.dumps({'error': 'Admin access required'})
+    }
+
 def lambda_handler(event, context):
     """
     Enhanced API handler for Fantasy Football vs Everyone:
@@ -35,7 +42,6 @@ def lambda_handler(event, context):
     # Initialize DynamoDB tables
     weekly_standings_table = dynamodb.Table(os.environ['WEEKLY_STANDINGS_TABLE'])
     overall_standings_table = dynamodb.Table(os.environ['OVERALL_STANDINGS_TABLE'])
-    league_data_table = dynamodb.Table(os.environ['LEAGUE_DATA_TABLE'])
     polling_state_table = dynamodb.Table(os.environ['POLLING_STATE_TABLE'])
     
     try:
@@ -58,41 +64,25 @@ def lambda_handler(event, context):
         # Polling toggle endpoint (admin only)
         elif 'polling/toggle' in path and http_method == 'POST':
             if not validate_admin_key(event):
-                return {
-                    'statusCode': 401,
-                    'headers': get_cors_headers(),
-                    'body': json.dumps({'error': 'Admin access required'})
-                }
+                return admin_required_response()
             return handle_polling_toggle(polling_state_table, context)
         
         # Calculate playoffs endpoint (admin only)
         elif 'calculate-playoffs' in path and http_method == 'POST':
             if not validate_admin_key(event):
-                return {
-                    'statusCode': 401,
-                    'headers': get_cors_headers(),
-                    'body': json.dumps({'error': 'Admin access required'})
-                }
+                return admin_required_response()
             return handle_calculate_playoffs(context)
         
         # Sync historical data endpoint (admin only)
         elif 'sync-historical' in path and http_method == 'POST':
             if not validate_admin_key(event):
-                return {
-                    'statusCode': 401,
-                    'headers': get_cors_headers(),
-                    'body': json.dumps({'error': 'Admin access required'})
-                }
+                return admin_required_response()
             return handle_sync_historical(context)
         
         # Fetch players endpoint (admin only)
         elif 'players' in path and http_method == 'GET':
             if not validate_admin_key(event):
-                return {
-                    'statusCode': 401,
-                    'headers': get_cors_headers(),
-                    'body': json.dumps({'error': 'Admin access required'})
-                }
+                return admin_required_response()
             return handle_fetch_players()
         
         # Admin validation endpoint

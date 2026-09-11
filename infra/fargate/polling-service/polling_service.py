@@ -8,7 +8,6 @@ standings directly using the shared ff_standings library.
 """
 
 import time
-import json
 import os
 import logging
 import signal
@@ -16,7 +15,6 @@ import sys
 from datetime import datetime, timezone
 import requests
 import boto3
-from decimal import Decimal
 
 # Import shared standings library
 from ff_standings import StandingsService

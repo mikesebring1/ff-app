@@ -3,10 +3,9 @@ import { useRef, useEffect, useState } from 'react'
 /**
  * Hook to detect score changes and trigger animations
  * @param {number} currentScore - The current score value
- * @param {string} playerId - Unique identifier for the player/team (optional)
  * @returns {object} Animation state and classes
  */
-export function useScoreAnimation(currentScore, playerId = null) {
+export function useScoreAnimation(currentScore) {
   const previousScore = useRef(currentScore)
   const [isAnimating, setIsAnimating] = useState(false)
   const [animationType, setAnimationType] = useState(null) // 'increase' | 'decrease' | null
@@ -64,11 +63,10 @@ export function useScoreAnimation(currentScore, playerId = null) {
 /**
  * Hook specifically for animating team total scores
  * @param {number} totalScore - Team's total score
- * @param {string} teamId - Team identifier
  * @returns {object} Animation state and classes for team scores
  */
-export function useTeamScoreAnimation(totalScore, teamId) {
-  const { isAnimating, animationType, scoreChanged } = useScoreAnimation(totalScore, teamId)
+export function useTeamScoreAnimation(totalScore) {
+  const { isAnimating, animationType, scoreChanged } = useScoreAnimation(totalScore)
   
   const getTeamAnimationClasses = () => {
     if (!isAnimating) return ''

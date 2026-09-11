@@ -3,7 +3,6 @@ import boto3
 import os
 import requests
 import logging
-from decimal import Decimal
 
 # Import shared libraries
 from ff_standings import StandingsService
@@ -204,10 +203,3 @@ def store_week_matchups(table, season, week, matchups):
     except Exception as e:
         logger.error(f"Failed to store week {week} matchups: {e}")
         raise
-
-
-def decimal_default(obj):
-    """JSON serializer for DynamoDB Decimal types"""
-    if isinstance(obj, Decimal):
-        return float(obj)
-    raise TypeError

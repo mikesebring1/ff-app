@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useSleeperProjections, useSleeperRosters, useSleeperUsers, useSleeperPlayers, useSleeperMatchups } from './useSleeper'
 import { useActiveGameTime } from './useActiveGameTime'
 
-// Hook to return all weeks 1-16 (no API calls needed)
+// Hook to return all weeks 1-17 (no API calls needed)
 export function useAvailableWeeks() {
   return useQuery({
     queryKey: ['availableWeeks'],

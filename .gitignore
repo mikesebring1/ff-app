@@ -25,5 +25,17 @@ dist-ssr
 .vercel
 
 # CDK output files
-infra/cdk.out/.cache
-infra/cdk.out/asset.*
+infra/cdk.out/
+infra/bin/*.js
+infra/bin/*.d.ts
+infra/lib/*.js
+infra/lib/*.d.ts
+infra/test/*.js
+infra/test/*.d.ts
+
+# Python build and cache files
+__pycache__/
+*.py[cod]
+build/
+*.egg-info/
+.pytest_cache/

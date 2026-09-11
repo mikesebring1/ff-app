@@ -109,15 +109,6 @@ export class InfrastructureStack extends cdk.Stack {
               ]
             })
           ]
-        }),
-        LambdaInvoke: new iam.PolicyDocument({
-          statements: [
-            new iam.PolicyStatement({
-              effect: iam.Effect.ALLOW,
-              actions: ['lambda:InvokeFunction'],
-              resources: ['arn:aws:lambda:*:*:function:ff-calculate-standings']
-            })
-          ]
         })
       }
     });

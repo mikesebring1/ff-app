@@ -27,12 +27,5 @@ RUN chmod +x polling_service.py
 RUN useradd --create-home --shell /bin/bash app
 USER app
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python3 -c "import requests; requests.get('http://localhost:8080/health', timeout=5)" || exit 1
-
-# Expose health check port (optional, for monitoring)
-EXPOSE 8080
-
 # Run the polling service
 CMD ["python3", "polling_service.py"]

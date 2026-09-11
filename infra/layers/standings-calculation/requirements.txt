@@ -1,5 +1,0 @@
-# Requirements for Fantasy Football Standings Calculation Layer
-# This layer provides shared functionality for both Fargate and Lambda
-
-boto3
-requests

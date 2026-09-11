@@ -39,11 +39,5 @@ export function useCurrentWeek() {
     ? nflState.week 
     : calculatedWeek
     
-  return {
-    currentWeek,
-    isPlayoffWeek: currentWeek >= 16,
-    isSemiFinals: currentWeek === 16,
-    isFinals: currentWeek === 17,
-    seasonYear: new Date().getFullYear()
-  }
+  return { currentWeek }
 }

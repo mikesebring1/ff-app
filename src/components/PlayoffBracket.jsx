@@ -8,8 +8,8 @@ import { useSleeperPlayers } from '../hooks/useSleeper'
 
 
 // Component for animated team total scores in playoffs
-function AnimatedPlayoffTeamScore({ teamId, points }) {
-  const { animationClasses } = useTeamScoreAnimation(points, teamId)
+function AnimatedPlayoffTeamScore({ points }) {
+  const { animationClasses } = useTeamScoreAnimation(points)
   
   return (
     <div className={`text-xl font-bold mt-1 ${animationClasses} rounded px-2`}>
@@ -319,9 +319,7 @@ function FinalsMatch({ match, title, icon, highlight1, highlight2, week17Complet
             {match.team1.name}
           </div>
           <AnimatedPlayoffTeamScore 
-            teamId={`${match.team1.name}-total`}
             points={match.team1.points}
-            projectedPoints={match.team1.projectedPoints}
           />
           <div className="text-xs text-gray-400">
             {match.team1.projectedPoints.toFixed(1)}
@@ -343,9 +341,7 @@ function FinalsMatch({ match, title, icon, highlight1, highlight2, week17Complet
             {match.team2.name}
           </div>
           <AnimatedPlayoffTeamScore 
-            teamId={`${match.team2.name}-total`}
             points={match.team2.points}
-            projectedPoints={match.team2.projectedPoints}
           />
           <div className="text-xs text-gray-400">
             {match.team2.projectedPoints.toFixed(1)}
@@ -447,4 +443,3 @@ function TeamCard({ team, seed, score, projectedScore, isWinner, highlight, isCh
     </div>
   )
 }
-

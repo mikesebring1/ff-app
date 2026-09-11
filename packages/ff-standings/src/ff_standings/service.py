@@ -62,8 +62,6 @@ class StandingsService:
     def calculate_standings(
         self,
         matchups: List[Dict[str, Any]],
-        season: str,
-        week: int,
         include_player_details: bool = True,
     ) -> List[Dict[str, Any]]:
         team_names = self.data_cache.get_team_names()
@@ -71,7 +69,7 @@ class StandingsService:
         return self.calculator.calculate_weekly_vs_everyone(matchups, team_names, players_data)
     
     def calculate_and_store(self, matchups: List[Dict[str, Any]], season: str, week: int, include_player_details: bool = True) -> List[Dict[str, Any]]:
-        weekly_results = self.calculate_standings(matchups, season, week, include_player_details)
+        weekly_results = self.calculate_standings(matchups, include_player_details)
         if not weekly_results:
             logger.warning("No weekly results to store")
             return []
@@ -89,5 +87,4 @@ class StandingsService:
         current_week = self.determine_current_week()
         logger.info(f"Processing current week: {current_week}")
         return self.process_week_from_db(season, current_week, include_player_details)
-
 

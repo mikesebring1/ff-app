@@ -2,11 +2,9 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://k9j2jjtd5a.execute-api.us-west-2.amazonaws.com/prod';
 
 export const apiConfig = {
-  baseUrl: API_BASE_URL,
   endpoints: {
     weekly: `${API_BASE_URL}/weekly`,
     overall: `${API_BASE_URL}/overall`, 
-    nflState: `${API_BASE_URL}/nfl-state`,
     pollingStatus: `${API_BASE_URL}/polling/status`,
     pollingToggle: `${API_BASE_URL}/polling/toggle`,
     calculatePlayoffs: `${API_BASE_URL}/calculate-playoffs`,
