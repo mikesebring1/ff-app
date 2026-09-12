@@ -13,10 +13,29 @@ export class InfrastructureStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
+    // The seed permanently anchors this league's renewal lineage. Future seasons
+    // are discovered through the stable member ID and validated league name.
+    const leagueContextEnvironment = {
+      SLEEPER_LEAGUE_SEED_ID: this.node.tryGetContext('sleeperLeagueSeedId') || '1388309161581752320',
+      SLEEPER_LEAGUE_USER_ID: this.node.tryGetContext('sleeperLeagueUserId') || '475076051211382784',
+      SLEEPER_LEAGUE_NAME: this.node.tryGetContext('sleeperLeagueName') || "Madtown's Finest"
+    };
+    const pythonAssetExcludes = [
+      '**/__pycache__',
+      '**/__pycache__/**',
+      '**/*.pyc',
+      '**/*.pyo'
+    ];
+
+    const adminApiKey = this.node.tryGetContext('adminKey') || process.env.ADMIN_API_KEY;
+    if (!adminApiKey) {
+      throw new Error('Set --context adminKey=<key> or ADMIN_API_KEY before synthesizing the stack');
+    }
+
     // DynamoDB Tables
     const weeklyStandingsTable = new dynamodb.Table(this, 'WeeklyStandings', {
       tableName: 'ff-weekly-standings',
-      partitionKey: { name: 'season_week', type: dynamodb.AttributeType.STRING }, // e.g., "2025_1"
+      partitionKey: { name: 'season_week', type: dynamodb.AttributeType.STRING }, // e.g., "2026_1"
       sortKey: { name: 'team_id', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: cdk.RemovalPolicy.RETAIN
@@ -24,7 +43,7 @@ export class InfrastructureStack extends cdk.Stack {
 
     const overallStandingsTable = new dynamodb.Table(this, 'OverallStandings', {
       tableName: 'ff-overall-standings',
-      partitionKey: { name: 'season', type: dynamodb.AttributeType.STRING }, // "2025"
+      partitionKey: { name: 'season', type: dynamodb.AttributeType.STRING }, // e.g., "2026"
       sortKey: { name: 'team_id', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: cdk.RemovalPolicy.RETAIN
@@ -134,7 +153,7 @@ export class InfrastructureStack extends cdk.Stack {
       containerName: 'polling-service',
       image: ecs.ContainerImage.fromEcrRepository(pollingRepo, 'latest'),
       environment: {
-        SLEEPER_LEAGUE_ID: '1251986365806034944',
+        ...leagueContextEnvironment,
         WEEKLY_STANDINGS_TABLE: weeklyStandingsTable.tableName,
         OVERALL_STANDINGS_TABLE: overallStandingsTable.tableName,
         LEAGUE_DATA_TABLE: leagueDataTable.tableName,
@@ -149,14 +168,18 @@ export class InfrastructureStack extends cdk.Stack {
     // Shared Lambda Layers
     const requestsLayer = new lambda.LayerVersion(this, 'RequestsLayer', {
       layerVersionName: 'ff-requests-layer',
-      code: lambda.Code.fromAsset('layers/requests-layer'),
+      code: lambda.Code.fromAsset('layers/requests-layer', {
+        exclude: pythonAssetExcludes
+      }),
       compatibleRuntimes: [lambda.Runtime.PYTHON_3_11],
       description: 'Requests library for all Lambda functions'
     });
 
     const commonUtilsLayer = new lambda.LayerVersion(this, 'CommonUtilsLayer', {
       layerVersionName: 'ff-common-utils-layer',
-      code: lambda.Code.fromAsset('layers/common-utils'),
+      code: lambda.Code.fromAsset('layers/common-utils', {
+        exclude: pythonAssetExcludes
+      }),
       compatibleRuntimes: [lambda.Runtime.PYTHON_3_11],
       description: 'Common utilities (DynamoDB, auth) for all Lambda functions'
     });
@@ -164,19 +187,18 @@ export class InfrastructureStack extends cdk.Stack {
     // New: Standings calculation layer providing ff_standings package
     const standingsCalculationLayer = new lambda.LayerVersion(this, 'StandingsCalculationLayer', {
       layerVersionName: 'ff-standings-calculation-layer',
-      code: lambda.Code.fromAsset('.', {
+      code: lambda.Code.fromAsset('../packages/ff-standings', {
+        exclude: pythonAssetExcludes,
         bundling: {
           image: lambda.Runtime.PYTHON_3_11.bundlingImage,
           command: [
             'bash',
             '-c',
-            // Docker fallback will not see repo root; kept for completeness but local bundling should succeed
-            'echo "Docker bundling for ff-standings not supported (package outside infra). Use local bundling." && exit 1'
+            'mkdir -p /asset-output/python && python -c "import shutil; shutil.copytree(\'/asset-input/src/ff_standings\', \'/asset-output/python/ff_standings\', ignore=shutil.ignore_patterns(\'__pycache__\', \'*.pyc\', \'*.pyo\'))"'
           ],
           local: {
             tryBundle(outputDir: string) {
               try {
-                const cp = require('child_process');
                 const path = require('path');
                 const fs = require('fs');
                 const pythonDir = path.join(outputDir, 'python');
@@ -188,7 +210,17 @@ export class InfrastructureStack extends cdk.Stack {
                 if (!fs.existsSync(packagePath)) {
                   throw new Error(`ff-standings package not found at ${packagePath}`);
                 }
-                cp.execSync(`pip3 install ${packagePath} -t ${pythonDir}`, { stdio: 'inherit' });
+                fs.cpSync(
+                  path.join(packagePath, 'src', 'ff_standings'),
+                  path.join(pythonDir, 'ff_standings'),
+                  {
+                    recursive: true,
+                    filter: (source: string) => {
+                      const basename = path.basename(source);
+                      return basename !== '__pycache__' && !/\.py[co]$/.test(basename);
+                    }
+                  }
+                );
                 return true;
               } catch (e) {
                 console.error('Local bundling failed for ff-standings:', e);
@@ -208,9 +240,11 @@ export class InfrastructureStack extends cdk.Stack {
       functionName: 'ff-historical-backfill',
       runtime: lambda.Runtime.PYTHON_3_11,
       handler: 'lambda_function.lambda_handler',
-      code: lambda.Code.fromAsset('lambda/historical-backfill'),
+      code: lambda.Code.fromAsset('lambda/historical-backfill', {
+        exclude: pythonAssetExcludes
+      }),
       environment: {
-        SLEEPER_LEAGUE_ID: '1251986365806034944',
+        ...leagueContextEnvironment,
         WEEKLY_STANDINGS_TABLE: weeklyStandingsTable.tableName,
         OVERALL_STANDINGS_TABLE: overallStandingsTable.tableName,
         LEAGUE_DATA_TABLE: leagueDataTable.tableName,
@@ -224,9 +258,11 @@ export class InfrastructureStack extends cdk.Stack {
       functionName: 'ff-monte-carlo',
       runtime: lambda.Runtime.PYTHON_3_11,
       handler: 'lambda_function.lambda_handler',
-      code: lambda.Code.fromAsset('lambda/monte-carlo'),
+      code: lambda.Code.fromAsset('lambda/monte-carlo', {
+        exclude: pythonAssetExcludes
+      }),
       environment: {
-        SLEEPER_LEAGUE_ID: '1251986365806034944',
+        ...leagueContextEnvironment,
         WEEKLY_STANDINGS_TABLE: weeklyStandingsTable.tableName,
         OVERALL_STANDINGS_TABLE: overallStandingsTable.tableName,
         LEAGUE_DATA_TABLE: leagueDataTable.tableName
@@ -248,8 +284,11 @@ export class InfrastructureStack extends cdk.Stack {
       functionName: 'ff-api-handler',
       runtime: lambda.Runtime.PYTHON_3_11,
       handler: 'lambda_function.lambda_handler',
-      code: lambda.Code.fromAsset('lambda/api-handler'),
+      code: lambda.Code.fromAsset('lambda/api-handler', {
+        exclude: pythonAssetExcludes
+      }),
       environment: {
+        ...leagueContextEnvironment,
         WEEKLY_STANDINGS_TABLE: weeklyStandingsTable.tableName,
         OVERALL_STANDINGS_TABLE: overallStandingsTable.tableName,
         LEAGUE_DATA_TABLE: leagueDataTable.tableName,
@@ -260,7 +299,7 @@ export class InfrastructureStack extends cdk.Stack {
         SECURITY_GROUP_ID: ecsTaskSecurityGroup.securityGroupId,
         HISTORICAL_BACKFILL_FUNCTION: 'ff-historical-backfill',
         MONTE_CARLO_FUNCTION: 'ff-monte-carlo',
-        ADMIN_API_KEY: this.node.tryGetContext('adminKey') || 'madtown-admin-2025-default'
+        ADMIN_API_KEY: adminApiKey
       },
       timeout: cdk.Duration.seconds(180),
       memorySize: 512,
@@ -333,6 +372,9 @@ export class InfrastructureStack extends cdk.Stack {
 
     const overallResource = api.root.addResource('overall');
     overallResource.addMethod('GET', new apigateway.LambdaIntegration(apiFunction));
+
+    const leagueContextResource = api.root.addResource('league-context');
+    leagueContextResource.addMethod('GET', new apigateway.LambdaIntegration(apiFunction));
 
     const nflStateResource = api.root.addResource('nfl-state');
     nflStateResource.addMethod('GET', new apigateway.LambdaIntegration(apiFunction));

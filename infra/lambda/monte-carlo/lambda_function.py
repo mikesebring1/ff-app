@@ -10,10 +10,11 @@ import json
 import os
 import logging
 from collections import defaultdict
-import requests
 import boto3
 from decimal import Decimal
 import numpy as np
+
+from ff_utils.league_context import resolve_league_context_from_env
 
 # Configure logging
 logger = logging.getLogger()
@@ -51,7 +52,6 @@ def lambda_handler(event, context):
 class MonteCarloService:
     def __init__(self):
         """Initialize the Monte Carlo simulation service"""
-        self.league_id = os.environ.get('SLEEPER_LEAGUE_ID', '1251986365806034944')
         self.num_simulations = 10000
         
         # AWS clients
@@ -64,52 +64,35 @@ class MonteCarloService:
         
         logger.info("Monte Carlo service initialized")
 
-    def get_nfl_state(self):
-        """Get current NFL state (season and week)"""
-        try:
-            response = requests.get('https://api.sleeper.app/v1/state/nfl', timeout=10)
-            response.raise_for_status()
-            
-            nfl_state = response.json()
-            season = nfl_state.get('season', '2025')
-            week = nfl_state.get('week', 1)
-            
-            logger.info(f"NFL State: Season {season}, Week {week}")
-            return season, week
-            
-        except Exception as e:
-            logger.error(f"Error getting NFL state: {e}")
-            # Default to current assumptions
-            return '2025', 1
-
-    def get_team_mapping(self):
+    def get_team_mapping(self, league_id, season):
         """Get team ID to name mapping"""
         try:
-            # Try to get cached user data
-            response = self.league_data_table.get_item(
-                Key={'data_type': 'users', 'id': 'all'}
+            users_response = self.league_data_table.query(
+                KeyConditionExpression=boto3.dynamodb.conditions.Key('data_type').eq('users'),
+                FilterExpression=(
+                    boto3.dynamodb.conditions.Attr('league_id').eq(league_id)
+                    & boto3.dynamodb.conditions.Attr('season').eq(season)
+                )
             )
-            
-            if 'Item' not in response:
+            roster_response = self.league_data_table.query(
+                KeyConditionExpression=boto3.dynamodb.conditions.Key('data_type').eq('rosters'),
+                FilterExpression=(
+                    boto3.dynamodb.conditions.Attr('league_id').eq(league_id)
+                    & boto3.dynamodb.conditions.Attr('season').eq(season)
+                )
+            )
+
+            if not users_response.get('Items'):
                 logger.warning("No cached user data found")
                 return {}
-            
-            users_data = response['Item']['data']
-            
-            # Get roster to user mapping
-            roster_response = self.league_data_table.get_item(
-                Key={'data_type': 'rosters', 'id': 'all'}
-            )
-            
-            if 'Item' not in roster_response:
+            if not roster_response.get('Items'):
                 logger.warning("No cached roster data found")
                 return {}
-                
-            rosters_data = roster_response['Item']['data']
             
             # Build mapping: roster_id -> user_id -> display_name
             roster_to_user = {}
-            for roster in rosters_data:
+            for item in roster_response['Items']:
+                roster = item['data']
                 roster_id = str(roster['roster_id'])
                 user_id = roster.get('owner_id')
                 if user_id:
@@ -117,7 +100,9 @@ class MonteCarloService:
             
             # Build user_id -> display_name mapping
             user_to_name = {}
-            for user_id, user_data in users_data.items():
+            for item in users_response['Items']:
+                user_data = item['data']
+                user_id = user_data['user_id']
                 display_name = (
                     user_data.get('metadata', {}).get('team_name') or
                     user_data.get('display_name') or
@@ -139,7 +124,7 @@ class MonteCarloService:
             logger.error(f"Error getting team mapping: {e}")
             return {}
 
-    def get_completed_weeks_data(self, season, current_week):
+    def get_completed_weeks_data(self, league_id, season, current_week):
         """Get all completed weekly standings data"""
         try:
             completed_weeks = list(range(1, current_week))
@@ -153,7 +138,8 @@ class MonteCarloService:
             
             for week in completed_weeks:
                 response = self.weekly_standings_table.query(
-                    KeyConditionExpression=boto3.dynamodb.conditions.Key('season_week').eq(f'{season}_{week}')
+                    KeyConditionExpression=boto3.dynamodb.conditions.Key('season_week').eq(f'{season}_{week}'),
+                    FilterExpression=boto3.dynamodb.conditions.Attr('league_id').eq(league_id)
                 )
                 
                 week_data = {}
@@ -211,7 +197,7 @@ class MonteCarloService:
         decay_factor = 1 - np.sqrt(progress)
         return start_lambda - (start_lambda - end_lambda) * decay_factor
 
-    def simulate_remaining_season(self, team_score_pools, league_score_pool, current_week):
+    def simulate_remaining_season(self, team_score_pools, league_score_pool, current_week, season, league_id):
         """Vectorized Monte Carlo simulation using NumPy with dynamic lambda and noise"""
         remaining_weeks = list(range(current_week, 16))  # Weeks current through 15 (playoffs start week 16)
         
@@ -288,7 +274,7 @@ class MonteCarloService:
             season_wins += week_wins
         
         # Get current standings
-        current_standings = self.get_current_season_standings()
+        current_standings = self.get_current_season_standings(season, league_id)
         
         # Add current wins to simulated wins
         current_wins = np.array([
@@ -317,11 +303,12 @@ class MonteCarloService:
         logger.info("Vectorized Monte Carlo simulation completed")
         return playoff_percentages
 
-    def get_current_season_standings(self):
+    def get_current_season_standings(self, season, league_id):
         """Get current season standings"""
         try:
             response = self.overall_standings_table.query(
-                KeyConditionExpression=boto3.dynamodb.conditions.Key('season').eq('2025')
+                KeyConditionExpression=boto3.dynamodb.conditions.Key('season').eq(season),
+                FilterExpression=boto3.dynamodb.conditions.Attr('league_id').eq(league_id)
             )
             
             standings = {}
@@ -338,7 +325,7 @@ class MonteCarloService:
             logger.error(f"Error getting current standings: {e}")
             return {}
 
-    def update_playoff_percentages(self, playoff_percentages, team_names, season):
+    def update_playoff_percentages(self, playoff_percentages, team_names, league_id, season):
         """Update the overall standings table with playoff percentages"""
         try:
             logger.info("Updating playoff percentages in database...")
@@ -352,9 +339,12 @@ class MonteCarloService:
                         'season': season,
                         'team_id': team_id
                     },
-                    UpdateExpression='SET playoff_percentage = :percentage',
+                    UpdateExpression=(
+                        'SET playoff_percentage = :percentage, league_id = :league_id'
+                    ),
                     ExpressionAttributeValues={
-                        ':percentage': Decimal(str(percentage))
+                        ':percentage': Decimal(str(percentage)),
+                        ':league_id': league_id,
                     },
                     ReturnValues='UPDATED_NEW'
                 )
@@ -370,14 +360,16 @@ class MonteCarloService:
     def run(self):
         """Main simulation execution"""
         try:
-            # Get current NFL state
-            season, current_week = self.get_nfl_state()
+            league_context = resolve_league_context_from_env()
+            season = league_context['season']
+            current_week = league_context['week']
+            league_id = league_context['league_id']
             
             # Get team mapping
-            team_names = self.get_team_mapping()
+            team_names = self.get_team_mapping(league_id, season)
             
             # Get completed weeks data
-            weeks_data = self.get_completed_weeks_data(season, current_week)
+            weeks_data = self.get_completed_weeks_data(league_id, season, current_week)
             
             if not weeks_data:
                 logger.error("No completed weeks data found")
@@ -391,10 +383,21 @@ class MonteCarloService:
                 return {'error': 'No score pools could be built'}
             
             # Run Monte Carlo simulation using shrinkage sampling
-            playoff_percentages = self.simulate_remaining_season(team_score_pools, league_score_pool, current_week)
+            playoff_percentages = self.simulate_remaining_season(
+                team_score_pools,
+                league_score_pool,
+                current_week,
+                season,
+                league_id,
+            )
             
             # Update database with results
-            self.update_playoff_percentages(playoff_percentages, team_names, season)
+            self.update_playoff_percentages(
+                playoff_percentages,
+                team_names,
+                league_id,
+                season,
+            )
             
             logger.info("Monte Carlo simulation completed successfully")
             return {

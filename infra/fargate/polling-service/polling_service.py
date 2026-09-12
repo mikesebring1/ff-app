@@ -19,6 +19,7 @@ import boto3
 # Import shared standings library
 from ff_standings import StandingsService
 from ff_standings.storage import StandingsStorage
+from ff_utils.league_context import LeagueContextError, resolve_league_context_from_env
 
 # Configure logging
 logging.basicConfig(
@@ -30,7 +31,7 @@ logger = logging.getLogger(__name__)
 class PollingService:
     def __init__(self):
         """Initialize the polling service with AWS clients and environment variables"""
-        self.league_id = os.environ.get('SLEEPER_LEAGUE_ID', '1251986365806034944')
+        self.league_id = None
         self.poll_interval = 10  # seconds
         self.running = True
         
@@ -71,22 +72,37 @@ class PollingService:
         logger.info(f"Received signal {signum}, shutting down gracefully...")
         self.running = False
 
-    def get_nfl_state(self):
-        """Fetch current NFL state to determine active week"""
+    def get_league_context(self):
+        """Resolve the active season, week, and season-specific league."""
         try:
-            response = requests.get('https://api.sleeper.app/v1/state/nfl', timeout=10)
-            response.raise_for_status()
-            nfl_state = response.json()
+            context = resolve_league_context_from_env()
+            resolved_position = (
+                context['league_id'],
+                context['season'],
+                context['week'],
+            )
+            current_position = (
+                self.league_id,
+                self.current_season,
+                self.current_week,
+            )
+            if resolved_position != current_position:
+                self.last_matchup_hash = None
+
+            self.league_id = context['league_id']
+            self.current_season = context['season']
+            self.current_week = context['week']
             
-            self.current_season = str(nfl_state.get('season', '2025'))
-            self.current_week = nfl_state.get('week', 1)
+            logger.info(
+                f"League context - League: {self.league_id}, "
+                f"Season: {self.current_season}, Week: {self.current_week}"
+            )
+            return context
             
-            logger.info(f"NFL State - Season: {self.current_season}, Week: {self.current_week}")
-            return nfl_state
-            
-        except requests.RequestException as e:
-            logger.error(f"Failed to fetch NFL state: {e}")
-            return None
+        except LeagueContextError as e:
+            logger.critical(f"Failed to resolve league context: {e}")
+            self.running = False
+            raise
 
     def fetch_current_matchups(self):
         """Fetch current week's matchup data from Sleeper API"""
@@ -128,6 +144,7 @@ class PollingService:
                 'data_type': 'matchups',
                 'id': f'{self.current_season}_{self.current_week}',
                 'season': self.current_season,
+                'league_id': self.league_id,
                 'week': self.current_week,
                 'data': matchups,
                 'last_updated': datetime.now(timezone.utc).isoformat(),
@@ -146,7 +163,11 @@ class PollingService:
             # Use update_item instead of put_item to avoid overwriting the 'enabled' field
             self.polling_state_table.update_item(
                 Key={'id': 'polling_status'},
-                UpdateExpression='SET #status = :status, last_heartbeat = :heartbeat, current_week = :week, current_season = :season',
+                UpdateExpression=(
+                    'SET #status = :status, last_heartbeat = :heartbeat, '
+                    'current_week = :week, current_season = :season, '
+                    'league_id = :league_id'
+                ),
                 ExpressionAttributeNames={
                     '#status': 'status'
                 },
@@ -154,7 +175,8 @@ class PollingService:
                     ':status': status,
                     ':heartbeat': datetime.now(timezone.utc).isoformat(),
                     ':week': self.current_week,
-                    ':season': self.current_season
+                    ':season': self.current_season,
+                    ':league_id': self.league_id
                 }
             )
         except Exception as e:
@@ -175,7 +197,7 @@ class PollingService:
         # Update NFL state periodically (every few cycles)
         if not hasattr(self, '_last_nfl_check') or \
            (datetime.now().timestamp() - self._last_nfl_check) > 300:  # 5 minutes
-            self.get_nfl_state()
+            self.get_league_context()
             self._last_nfl_check = datetime.now().timestamp()
 
         # Fetch current matchups
@@ -195,6 +217,7 @@ class PollingService:
                 try:
                     weekly_results = self.standings_service.calculate_and_store(
                         matchups, 
+                        self.league_id,
                         self.current_season, 
                         self.current_week,
                         include_player_details=True  # Include full roster details
@@ -217,8 +240,11 @@ class PollingService:
         logger.info("Starting polling service...")
         
         # Initial setup
-        self.get_nfl_state()
-        self.standings_service.load_cache()  # Load players and team names once
+        self.get_league_context()
+        self.standings_service.load_cache(
+            self.league_id,
+            self.current_season,
+        )  # Load players and team names once
         self.update_polling_state('starting')
         
         while self.should_continue_polling():

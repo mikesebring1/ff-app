@@ -7,6 +7,11 @@ import logging
 # Import shared utilities
 from ff_utils.dynamodb import convert_floats_to_decimal, DecimalEncoder, get_cors_headers
 from ff_utils.auth import validate_admin_key
+from ff_utils.league_context import (
+    LeagueContextError,
+    fetch_nfl_state,
+    resolve_league_context_from_env,
+)
 
 # Configure logging
 logger = logging.getLogger()
@@ -28,6 +33,7 @@ def lambda_handler(event, context):
     Enhanced API handler for Fantasy Football vs Everyone:
     - GET /weekly - Get weekly standings
     - GET /overall - Get overall standings  
+    - GET /league-context - Resolve the active season, week, and league
     - GET /nfl-state - Get current NFL week info
     - GET /polling/status - Get polling status
     - POST /polling/toggle - Start/stop polling service
@@ -53,7 +59,11 @@ def lambda_handler(event, context):
         elif 'overall' in path and http_method == 'GET':
             return handle_overall_standings(overall_standings_table, query_params)
         
-        # NFL state endpoint
+        # League context endpoint
+        elif 'league-context' in path and http_method == 'GET':
+            return handle_league_context()
+
+        # NFL state endpoint (kept for backwards compatibility)
         elif 'nfl-state' in path and http_method == 'GET':
             return handle_nfl_state()
         
@@ -106,11 +116,28 @@ def lambda_handler(event, context):
 
 def handle_weekly_standings(table, query_params):
     """Get weekly standings for specified week"""
-    week = query_params.get('week', '1')
-    season = query_params.get('season', '2025')
+    missing = [name for name in ('week', 'season', 'league_id') if not query_params.get(name)]
+    if missing:
+        return invalid_query_response(missing)
+
+    week = query_params['week']
+    season = query_params['season']
+    league_id = query_params['league_id']
+
+    try:
+        week_number = int(week)
+        if week_number < 1:
+            raise ValueError
+    except (TypeError, ValueError):
+        return {
+            'statusCode': 400,
+            'headers': get_cors_headers(),
+            'body': json.dumps({'error': 'week must be a positive integer'})
+        }
     
     response = table.query(
         KeyConditionExpression=boto3.dynamodb.conditions.Key('season_week').eq(f"{season}_{week}"),
+        FilterExpression=boto3.dynamodb.conditions.Attr('league_id').eq(league_id),
         ScanIndexForward=True
     )
     
@@ -121,18 +148,25 @@ def handle_weekly_standings(table, query_params):
         'statusCode': 200,
         'headers': get_cors_headers(),
         'body': json.dumps({
-            'week': int(week),
+            'week': week_number,
             'season': season,
+            'league_id': league_id,
             'standings': standings
         }, cls=DecimalEncoder)
     }
 
 def handle_overall_standings(table, query_params):
     """Get overall standings for season"""
-    season = query_params.get('season', '2025')
+    missing = [name for name in ('season', 'league_id') if not query_params.get(name)]
+    if missing:
+        return invalid_query_response(missing)
+
+    season = query_params['season']
+    league_id = query_params['league_id']
     
     response = table.query(
-        KeyConditionExpression=boto3.dynamodb.conditions.Key('season').eq(season)
+        KeyConditionExpression=boto3.dynamodb.conditions.Key('season').eq(season),
+        FilterExpression=boto3.dynamodb.conditions.Attr('league_id').eq(league_id)
     )
     
     # Sort by win percentage (descending), then by total points (descending)
@@ -151,16 +185,44 @@ def handle_overall_standings(table, query_params):
         'headers': get_cors_headers(),
         'body': json.dumps({
             'season': season,
+            'league_id': league_id,
             'standings': standings
         }, cls=DecimalEncoder)
     }
 
+def invalid_query_response(missing):
+    return {
+        'statusCode': 400,
+        'headers': get_cors_headers(),
+        'body': json.dumps({
+            'error': f"Missing required query parameters: {', '.join(missing)}"
+        })
+    }
+
+def handle_league_context():
+    """Resolve the active league from stable Sleeper identity."""
+    try:
+        context = resolve_league_context_from_env()
+        return {
+            'statusCode': 200,
+            'headers': get_cors_headers(),
+            'body': json.dumps(context)
+        }
+    except LeagueContextError as error:
+        logger.error(f"Failed to resolve league context: {error}")
+        return {
+            'statusCode': 502,
+            'headers': get_cors_headers(),
+            'body': json.dumps({
+                'error': 'Failed to resolve active league context',
+                'details': str(error)
+            })
+        }
+
 def handle_nfl_state():
     """Get current NFL state from Sleeper API"""
     try:
-        response = requests.get('https://api.sleeper.app/v1/state/nfl', timeout=10)
-        response.raise_for_status()
-        nfl_state = response.json()
+        nfl_state = fetch_nfl_state()
         
         return {
             'statusCode': 200,
@@ -172,7 +234,7 @@ def handle_nfl_state():
                 'display_week': nfl_state.get('display_week')
             })
         }
-    except requests.RequestException as e:
+    except LeagueContextError as e:
         logger.error(f"Failed to fetch NFL state: {e}")
         return {
             'statusCode': 500,
@@ -390,11 +452,9 @@ def handle_admin_validate(event):
 def handle_fetch_players():
     """Fetch all NFL players data from Sleeper API and store in DynamoDB using chunked storage"""
     try:
-        # Get current season from NFL state
-        logger.info("Fetching NFL state...")
-        nfl_state_response = requests.get('https://api.sleeper.app/v1/state/nfl', timeout=30)
-        nfl_state_response.raise_for_status()
-        season = nfl_state_response.json().get('season', '2025')
+        context = resolve_league_context_from_env()
+        season = context['season']
+        league_id = context['league_id']
         
         # Fetch players data from Sleeper API
         logger.info("Fetching players data from Sleeper API...")
@@ -438,6 +498,7 @@ def handle_fetch_players():
             'data_type': 'players',
             'id': 'nfl_players',
             'season': season,
+            'league_id': league_id,
             'data': filtered_players_dict,
             'player_count': len(filtered_players_dict),
             'storage_strategy': 'filtered_v1',
@@ -460,7 +521,8 @@ def handle_fetch_players():
                 'players_count': len(filtered_players_dict),
                 'original_count': len(players_data),
                 'reduction_percent': round((1 - len(filtered_players_dict)/len(players_data)) * 100, 1),
-                'season': season
+                'season': season,
+                'league_id': league_id
             })
         }
         

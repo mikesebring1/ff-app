@@ -41,4 +41,8 @@ npm test
 - `infra/layers/` — Lambda layer sources
 - `packages/ff-standings/` — shared standings calculation package
 
-The current application and deployment configuration are still tied to the 2025 Sleeper league. Season rollover and polling automation are planned separately from the initial cleanup pass.
+The frontend resolves the active season, week, and season-specific Sleeper league through the backend's public `/league-context` endpoint. The resolver follows Sleeper's renewal lineage from the configured 2026 seed league, so normal season rollover does not require a source-code change.
+
+## Architecture roadmap
+
+The accepted direction and staged migration are documented in [docs/architecture-plan.md](docs/architecture-plan.md). The plan keeps live polling in the visible PWA, moves player metadata and end-of-week processing to scheduled backend work, and retires the live ECS infrastructure after the replacement is verified.

@@ -1,10 +1,17 @@
 import { useCallback } from 'react'
 import BaseChart from './charts/BaseChart'
 import { collectTeamNames, fetchWeeklyHistory } from '../lib/weekly-history'
+import { useLeagueContext } from '../hooks/useLeagueContext'
 
 export default function OverallStandingsChart({ selectedTeam, onTeamSelect }) {
+  const { data: leagueContext } = useLeagueContext()
   const fetchOverallChartData = useCallback(async () => {
-    const weeklyHistory = await fetchWeeklyHistory()
+    if (!leagueContext) return { chartData: [], teamNames: [] }
+
+    const weeklyHistory = await fetchWeeklyHistory(
+      leagueContext.season,
+      leagueContext.league_id
+    )
     const teamNames = collectTeamNames(weeklyHistory)
 
     // Extract unique team names and initialize cumulative data
@@ -63,7 +70,7 @@ export default function OverallStandingsChart({ selectedTeam, onTeamSelect }) {
     })
 
     return { chartData, teamNames }
-  }, [])
+  }, [leagueContext])
 
   return (
     <BaseChart

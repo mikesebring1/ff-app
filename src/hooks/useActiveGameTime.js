@@ -1,11 +1,11 @@
-import { useSleeperNFLState } from './useSleeper'
+import { useLeagueContext } from './useLeagueContext'
 
 /**
  * Hook to determine if it's currently an active NFL game time
  * Active times: Thursday evenings, Sundays, and Monday evenings during game times
  */
 export function useActiveGameTime(selectedWeek = null) {
-  const { data: nflState } = useSleeperNFLState()
+  const { data: nflState } = useLeagueContext()
   
   // Check if it's an active NFL day and time
   const isActiveGameDay = () => {

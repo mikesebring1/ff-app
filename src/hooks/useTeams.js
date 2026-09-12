@@ -1,17 +1,23 @@
 import { useQuery } from '@tanstack/react-query'
 import { apiConfig } from '../config/api'
+import { useLeagueContext } from './useLeagueContext'
 
 /**
  * Custom hook to fetch and manage team names from the API using React Query
  * @returns {Object} { teams, loading, error }
  */
 export const useTeams = () => {
+  const { data: leagueContext } = useLeagueContext()
   const { data: teams = ['All Teams'], isLoading: loading, error } = useQuery({
-    queryKey: ['teams'],
+    queryKey: ['teams', leagueContext?.season, leagueContext?.league_id],
     queryFn: async () => {
       // Try to fetch from overall standings first (more reliable than weekly)
       try {
-        const response = await fetch(`${apiConfig.endpoints.overall}?season=2025`, {
+        const params = new URLSearchParams({
+          season: leagueContext.season,
+          league_id: leagueContext.league_id
+        })
+        const response = await fetch(`${apiConfig.endpoints.overall}?${params}`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -48,6 +54,7 @@ export const useTeams = () => {
                 'Team 6', 'Team 7', 'Team 8', 'Team 9', 'Team 10']
       }
     },
+    enabled: !!leagueContext,
     staleTime: 1000 * 60 * 30, // 30 minutes - team data doesn't change often
     gcTime: 1000 * 60 * 60, // 1 hour
     refetchOnWindowFocus: false,
@@ -59,4 +66,3 @@ export const useTeams = () => {
 
   return { teams, loading, error }
 }
-

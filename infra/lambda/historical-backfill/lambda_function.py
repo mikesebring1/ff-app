@@ -7,6 +7,7 @@ import logging
 # Import shared libraries
 from ff_standings import StandingsService
 from ff_utils.dynamodb import convert_floats_to_decimal
+from ff_utils.league_context import resolve_league_context_from_env
 
 # Configure logging
 logger = logging.getLogger()
@@ -25,7 +26,6 @@ def lambda_handler(event, context):
     
     try:
         # Initialize environment variables
-        league_id = os.environ['SLEEPER_LEAGUE_ID']
         league_data_table = dynamodb.Table(os.environ['LEAGUE_DATA_TABLE'])
         weekly_standings_table = dynamodb.Table(os.environ['WEEKLY_STANDINGS_TABLE'])
         overall_standings_table = dynamodb.Table(os.environ['OVERALL_STANDINGS_TABLE'])
@@ -38,12 +38,13 @@ def lambda_handler(event, context):
         }
         standings_service = StandingsService(dynamodb_tables, enable_persistent_cache=False)
         
+        # Resolve current state and the season-specific league without fallbacks.
+        league_context = resolve_league_context_from_env()
+        league_id = league_context['league_id']
+        current_week = league_context['week']
+        season = league_context['season']
+
         logger.info(f"Starting historical backfill for league {league_id}")
-        
-        # Step 1: Get current NFL state to determine completed weeks
-        nfl_state = get_nfl_state()
-        current_week = nfl_state.get('week', 1)
-        season = nfl_state.get('season', '2025')
         
         logger.info(f"NFL State - Season: {season}, Current Week: {current_week}")
         
@@ -59,7 +60,9 @@ def lambda_handler(event, context):
                 'statusCode': 200,
                 'body': json.dumps({
                     'message': 'No completed weeks to backfill',
-                    'current_week': current_week
+                    'current_week': current_week,
+                    'season': season,
+                    'league_id': league_id
                 })
             }
         
@@ -71,12 +74,13 @@ def lambda_handler(event, context):
             
             # Fetch and store matchup data for this week
             matchups = fetch_week_matchups(league_id, week)
-            store_week_matchups(league_data_table, season, week, matchups)
+            store_week_matchups(league_data_table, league_id, season, week, matchups)
             
             # Calculate and store standings directly using shared library
             try:
                 weekly_results = standings_service.calculate_and_store(
                     matchups,
+                    league_id,
                     season, 
                     week,
                     include_player_details=True  # Include full player details for historical processing
@@ -93,7 +97,8 @@ def lambda_handler(event, context):
             'body': json.dumps({
                 'message': f'Historical backfill completed for {len(completed_weeks)} weeks',
                 'weeks_processed': completed_weeks,
-                'season': season
+                'season': season,
+                'league_id': league_id
             })
         }
         
@@ -107,16 +112,6 @@ def lambda_handler(event, context):
             })
         }
 
-def get_nfl_state():
-    """Fetch current NFL state from Sleeper API"""
-    try:
-        response = requests.get('https://api.sleeper.app/v1/state/nfl', timeout=10)
-        response.raise_for_status()
-        return response.json()
-    except requests.RequestException as e:
-        logger.error(f"Failed to fetch NFL state: {e}")
-        raise
-
 def cache_league_data(league_id, table, season):
     """Cache users, rosters, and players data in DynamoDB"""
     
@@ -128,6 +123,7 @@ def cache_league_data(league_id, table, season):
             'data_type': 'users',
             'id': user['user_id'],
             'season': season,
+            'league_id': league_id,
             'data': user
         }))
     logger.info(f"Cached {len(users)} users")
@@ -140,6 +136,7 @@ def cache_league_data(league_id, table, season):
             'data_type': 'rosters',
             'id': str(roster['roster_id']),
             'season': season,
+            'league_id': league_id,
             'data': roster
         }))
     logger.info(f"Cached {len(rosters)} rosters")
@@ -151,6 +148,7 @@ def cache_league_data(league_id, table, season):
         'data_type': 'league_info',
         'id': 'league',
         'season': season,
+        'league_id': league_id,
         'data': league_info
     }))
     logger.info("Cached league info")
@@ -188,7 +186,7 @@ def fetch_week_matchups(league_id, week):
     url = f'https://api.sleeper.app/v1/league/{league_id}/matchups/{week}'
     return fetch_sleeper_data(url)
 
-def store_week_matchups(table, season, week, matchups):
+def store_week_matchups(table, league_id, season, week, matchups):
     """Store weekly matchup data in DynamoDB"""
     try:
         # Store matchups data for this week
@@ -196,6 +194,7 @@ def store_week_matchups(table, season, week, matchups):
             'data_type': 'matchups',
             'id': f'{season}_{week}',
             'season': season,
+            'league_id': league_id,
             'week': week,
             'data': matchups
         }))

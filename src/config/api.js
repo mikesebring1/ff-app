@@ -4,7 +4,8 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://k9j2jjtd5a.execute
 export const apiConfig = {
   endpoints: {
     weekly: `${API_BASE_URL}/weekly`,
-    overall: `${API_BASE_URL}/overall`, 
+    overall: `${API_BASE_URL}/overall`,
+    leagueContext: `${API_BASE_URL}/league-context`,
     pollingStatus: `${API_BASE_URL}/polling/status`,
     pollingToggle: `${API_BASE_URL}/polling/toggle`,
     calculatePlayoffs: `${API_BASE_URL}/calculate-playoffs`,

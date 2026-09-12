@@ -25,13 +25,14 @@ class StandingsStorage:
         else:
             return obj
     
-    def store_weekly_standings(self, weekly_results: List[Dict[str, Any]], season: str, week: int) -> None:
+    def store_weekly_standings(self, weekly_results: List[Dict[str, Any]], league_id: str, season: str, week: int) -> None:
         season_week = f"{season}_{week}"
         for result in weekly_results:
             try:
                 self.weekly_standings_table.put_item(Item=self.convert_floats_to_decimal({
                     'season_week': season_week,
                     'team_id': result['roster_id'],
+                    'league_id': league_id,
                     'rank': result['rank'],
                     'team_name': result['team_name'],
                     'points': result['points'],
@@ -43,10 +44,13 @@ class StandingsStorage:
                 logger.error(f"Error storing weekly result for {result['team_name']}: {e}")
         logger.info(f"Stored weekly standings for week {week}")
     
-    def update_overall_standings(self, season: str) -> None:
+    def update_overall_standings(self, league_id: str, season: str) -> None:
         try:
             all_weeks = self.weekly_standings_table.scan(
-                FilterExpression=boto3.dynamodb.conditions.Attr('season_week').begins_with(f'{season}_')
+                FilterExpression=(
+                    boto3.dynamodb.conditions.Attr('season_week').begins_with(f'{season}_')
+                    & boto3.dynamodb.conditions.Attr('league_id').eq(league_id)
+                )
             )
             team_totals = {}
             for item in all_weeks['Items']:
@@ -88,6 +92,7 @@ class StandingsStorage:
                 self.overall_standings_table.put_item(Item=self.convert_floats_to_decimal({
                     'season': season,
                     'team_id': team_id,
+                    'league_id': league_id,
                     'team_name': totals['team_name'],
                     'total_wins': totals['total_wins'],
                     'total_losses': totals['total_losses'],
@@ -100,5 +105,4 @@ class StandingsStorage:
         except Exception as e:
             logger.error(f"Error updating overall standings: {e}")
             raise
-
 

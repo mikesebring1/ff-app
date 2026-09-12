@@ -16,19 +16,28 @@ class DataCache:
         self.enable_persistent_cache = enable_persistent_cache
         self._players_data = None
         self._team_names = None
+        self._cache_context = None
         self._cache_timestamp = 0
         self.cache_ttl = 3600 if enable_persistent_cache else 0
+
+    def _prepare_context(self, league_id: str, season: str) -> None:
+        requested_context = (league_id, season)
+        if self._cache_context and self._cache_context != requested_context:
+            self.clear_cache()
     
-    def _is_cache_valid(self) -> bool:
+    def _is_cache_valid(self, league_id: str, season: str) -> bool:
         if not self.enable_persistent_cache:
             return False
         if self._players_data is None or self._team_names is None:
             return False
+        if self._cache_context != (league_id, season):
+            return False
         return (time.time() - self._cache_timestamp) < self.cache_ttl
     
-    def get_players_data(self) -> Dict[str, Any]:
+    def get_players_data(self, league_id: str, season: str) -> Dict[str, Any]:
         """Get players data with caching (single-item filtered format only)"""
-        if self._is_cache_valid():
+        self._prepare_context(league_id, season)
+        if self._is_cache_valid(league_id, season):
             logger.debug("Using cached players data")
             return self._players_data
         
@@ -45,6 +54,11 @@ class DataCache:
                 raise ValueError("No players data found in DynamoDB. Run 'Fetch Players Data' first.")
             
             item = response['Item']
+            if item.get('league_id') != league_id or item.get('season') != season:
+                raise ValueError(
+                    f"Cached players do not match league {league_id}, season {season}. "
+                    "Run 'Fetch Players Data' for the active league."
+                )
             self._players_data = item['data']
             
             # Log info about the data we loaded
@@ -58,6 +72,7 @@ class DataCache:
                 logger.info(f"Filtered from {original_count} total players")
             
             if self.enable_persistent_cache:
+                self._cache_context = (league_id, season)
                 self._cache_timestamp = time.time()
             
             return self._players_data
@@ -66,9 +81,10 @@ class DataCache:
             logger.error(f"Error loading players data: {e}")
             raise
     
-    def get_team_names(self) -> Dict[str, str]:
+    def get_team_names(self, league_id: str, season: str) -> Dict[str, str]:
         """Get team names mapping with caching"""
-        if self._is_cache_valid():
+        self._prepare_context(league_id, season)
+        if self._is_cache_valid(league_id, season):
             logger.debug("Using cached team names")
             return self._team_names
         
@@ -78,7 +94,11 @@ class DataCache:
         try:
             # Get rosters (roster_id -> user_id mapping)
             rosters_response = self.league_data_table.query(
-                KeyConditionExpression=boto3.dynamodb.conditions.Key('data_type').eq('rosters')
+                KeyConditionExpression=boto3.dynamodb.conditions.Key('data_type').eq('rosters'),
+                FilterExpression=(
+                    boto3.dynamodb.conditions.Attr('league_id').eq(league_id)
+                    & boto3.dynamodb.conditions.Attr('season').eq(season)
+                )
             )
             
             roster_to_user = {}
@@ -91,7 +111,11 @@ class DataCache:
             
             # Get users (user_id -> display_name mapping)
             users_response = self.league_data_table.query(
-                KeyConditionExpression=boto3.dynamodb.conditions.Key('data_type').eq('users')
+                KeyConditionExpression=boto3.dynamodb.conditions.Key('data_type').eq('users'),
+                FilterExpression=(
+                    boto3.dynamodb.conditions.Attr('league_id').eq(league_id)
+                    & boto3.dynamodb.conditions.Attr('season').eq(season)
+                )
             )
             
             user_to_name = {}
@@ -118,6 +142,7 @@ class DataCache:
             self._team_names = team_names
             
             if self.enable_persistent_cache:
+                self._cache_context = (league_id, season)
                 self._cache_timestamp = time.time()
             
             logger.info(f"Loaded {len(team_names)} team names")
@@ -127,16 +152,17 @@ class DataCache:
             logger.error(f"Error loading team names: {e}")
             return {}
     
-    def load_all_cache(self) -> None:
+    def load_all_cache(self, league_id: str, season: str) -> None:
         """Load both players and team names into cache (for Fargate startup)"""
         logger.info("Loading all cached data...")
-        self.get_players_data()
-        self.get_team_names()
+        self.get_players_data(league_id, season)
+        self.get_team_names(league_id, season)
         logger.info("Cache loading complete")
     
     def clear_cache(self) -> None:
         """Clear all cached data"""
         self._players_data = None
         self._team_names = None
+        self._cache_context = None
         self._cache_timestamp = 0
         logger.info("Cache cleared")

@@ -1,10 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
+import { useLeagueContext } from './useLeagueContext'
 
 // Sleeper API base URL
 const SLEEPER_API_BASE = 'https://api.sleeper.app/v1'
-
-// Your league ID from the Lambda function
-const LEAGUE_ID = '1251986365806034944'
 
 const fetchSleeperJson = async (path, timeout = 10000) => {
   const response = await fetch(`${SLEEPER_API_BASE}${path}`, {
@@ -28,10 +26,13 @@ const fetchSleeperJson = async (path, timeout = 10000) => {
  */
 export const useSleeperRosters = (options = {}) => {
   const { pollingInterval = null } = options
+  const { data: leagueContext } = useLeagueContext()
+  const leagueId = leagueContext?.league_id
   
   return useQuery({
-    queryKey: ['sleeper-rosters', LEAGUE_ID],
-    queryFn: () => fetchSleeperJson(`/league/${LEAGUE_ID}/rosters`),
+    queryKey: ['sleeper-rosters', leagueId],
+    queryFn: () => fetchSleeperJson(`/league/${leagueId}/rosters`),
+    enabled: !!leagueId,
     staleTime: 5 * 60 * 1000, // 5 minutes for roster data
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
@@ -44,9 +45,13 @@ export const useSleeperRosters = (options = {}) => {
  * @returns {Object} TanStack Query result with user data
  */
 export const useSleeperUsers = () => {
+  const { data: leagueContext } = useLeagueContext()
+  const leagueId = leagueContext?.league_id
+
   return useQuery({
-    queryKey: ['sleeper-users', LEAGUE_ID],
-    queryFn: () => fetchSleeperJson(`/league/${LEAGUE_ID}/users`),
+    queryKey: ['sleeper-users', leagueId],
+    queryFn: () => fetchSleeperJson(`/league/${leagueId}/users`),
+    enabled: !!leagueId,
     staleTime: 60 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
     refetchOnWindowFocus: false
@@ -62,17 +67,19 @@ export const useSleeperUsers = () => {
  */
 export const useSleeperMatchups = (week, options = {}) => {
   const { pollingInterval = null } = options
+  const { data: leagueContext } = useLeagueContext()
+  const leagueId = leagueContext?.league_id
   
   return useQuery({
-    queryKey: ['sleeper-matchups', LEAGUE_ID, week],
+    queryKey: ['sleeper-matchups', leagueId, week],
     queryFn: async () => {
       if (!week) {
         throw new Error('Week is required to fetch matchups')
       }
 
-      return fetchSleeperJson(`/league/${LEAGUE_ID}/matchups/${week}`)
+      return fetchSleeperJson(`/league/${leagueId}/matchups/${week}`)
     },
-    enabled: !!week,
+    enabled: !!leagueId && !!week,
     staleTime: 5 * 60 * 1000, // 5 minutes for matchup data
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
@@ -83,14 +90,16 @@ export const useSleeperMatchups = (week, options = {}) => {
 /**
  * Hook to fetch projections directly from Sleeper API
  * @param {number} week - Week number to fetch projections for
- * @param {string} season - Season year (defaults to '2025')
- * @param {string} seasonType - Season type (defaults to 'regular')
  * @returns {Object} TanStack Query result with projection data
  */
 export const useSleeperProjections = ({
-  week, season = '2025', seasonType = 'regular', pollingInterval = null } = {}) => {
+  week, pollingInterval = null } = {}) => {
+  const { data: leagueContext } = useLeagueContext()
+  const season = leagueContext?.season
+  const seasonType = leagueContext?.season_type
+
   return useQuery({
-    enabled: !!week,
+    enabled: !!week && !!season && !!seasonType,
     queryKey: ['sleeper-projections', week, season, seasonType],
     queryFn: async () => {
       if (!week) {
@@ -123,20 +132,6 @@ export const useSleeperProjections = ({
     gcTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     refetchInterval: pollingInterval
-  })
-}
-
-/**
- * Hook to fetch current NFL state directly from Sleeper API
- * @returns {Object} TanStack Query result with NFL state data
- */
-export const useSleeperNFLState = () => {
-  return useQuery({
-    queryKey: ['sleeper-nfl-state'],
-    queryFn: () => fetchSleeperJson('/state/nfl'),
-    staleTime: 60 * 1000, // 1 minute
-    gcTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false
   })
 }
 

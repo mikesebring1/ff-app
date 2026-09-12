@@ -46,7 +46,7 @@ There is no EventBridge schedule, ECS service, or separate calculate-standings L
 
 ## Important current constraints
 
-- The Sleeper league ID and several season parameters remain fixed to 2025.
+- Active season, week, and league ID come from the public league-context endpoint and shared Sleeper resolver.
 - Browser weekly scoring and the shared Python calculator differ in tie handling.
 - Polling lifecycle hardening and automatic scheduling are future behavior changes, outside cleanup-only work.
 - The repository currently has little automated test coverage.

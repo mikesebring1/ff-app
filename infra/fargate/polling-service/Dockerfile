@@ -16,6 +16,7 @@ RUN pip install --no-cache-dir \
 
 # Copy application code
 COPY infra/fargate/polling-service/polling_service.py .
+COPY infra/layers/common-utils/python/ff_utils /app/ff_utils
 # Install local ff-standings package
 COPY packages/ff-standings /tmp/ff-standings
 RUN pip install --no-cache-dir /tmp/ff-standings

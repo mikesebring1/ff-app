@@ -74,7 +74,11 @@ function App() {
   const { isOnline, isSlowConnection } = useNetworkStatus()
   
   // Get current week info for playoff tab visibility
-  const { currentWeek } = useCurrentWeek()
+  const {
+    currentWeek,
+    isLoading: leagueContextLoading,
+    error: leagueContextError
+  } = useCurrentWeek()
   
   // PWA update handling
   const [updateAvailable, setUpdateAvailable] = useState(false)
@@ -328,6 +332,16 @@ function App() {
       <div className="max-w-4xl mx-auto pt-16 pb-8 px-4 sm:pt-8">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold tracking-tight">Madtown's Finest Standings</h1>
+          {leagueContextLoading && (
+            <div className="mt-2 text-sm text-muted-foreground">
+              Resolving the active league...
+            </div>
+          )}
+          {leagueContextError && (
+            <div className="mt-2 text-sm text-red-600 dark:text-red-400">
+              Unable to resolve the active league: {leagueContextError.message}
+            </div>
+          )}
           {!isOnline && (
             <div className="mt-2 text-sm text-orange-600 bg-orange-50 dark:bg-orange-900/20 dark:text-orange-400 px-3 py-1 rounded-full inline-block">
               ⚠️ Offline - Some features may be limited
@@ -350,30 +364,31 @@ function App() {
           )}
         </div>
         
-        {/* Tabs same width as accordion */}
+        {!leagueContextLoading && !leagueContextError && currentWeek && (
           <Tabs defaultValue={currentWeek >= 16 ? "playoffs" : "weekly"} className="w-full">
-          <TabsList className={`grid w-full ${currentWeek >= 16 ? 'grid-cols-3' : 'grid-cols-2'}`}>
-            {currentWeek >= 16 && (
-              <TabsTrigger value="playoffs">Playoffs</TabsTrigger>
-            )}
-            <TabsTrigger value="weekly">Weekly</TabsTrigger>
-            <TabsTrigger value="overall">Overall</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="weekly" className="mt-6">
-            <WeeklyStandings selectedTeam={selectedTeam} onTeamSelect={setSelectedTeam} />
-          </TabsContent>
-          
-          {currentWeek >= 16 && (
-            <TabsContent value="playoffs" className="mt-6">
-              <PlayoffBracket week={currentWeek.toString()} selectedTeam={selectedTeam} />
+            <TabsList className={`grid w-full ${currentWeek >= 16 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+              {currentWeek >= 16 && (
+                <TabsTrigger value="playoffs">Playoffs</TabsTrigger>
+              )}
+              <TabsTrigger value="weekly">Weekly</TabsTrigger>
+              <TabsTrigger value="overall">Overall</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="weekly" className="mt-6">
+              <WeeklyStandings selectedTeam={selectedTeam} onTeamSelect={setSelectedTeam} />
             </TabsContent>
-          )}
-          
-          <TabsContent value="overall" className="mt-6">
-            <OverallStandings selectedTeam={selectedTeam} onTeamSelect={setSelectedTeam} />
-          </TabsContent>
+
+            {currentWeek >= 16 && (
+              <TabsContent value="playoffs" className="mt-6">
+                <PlayoffBracket week={currentWeek.toString()} selectedTeam={selectedTeam} />
+              </TabsContent>
+            )}
+
+            <TabsContent value="overall" className="mt-6">
+              <OverallStandings selectedTeam={selectedTeam} onTeamSelect={setSelectedTeam} />
+            </TabsContent>
           </Tabs>
+        )}
       </div>
     </div>
     <ReactQueryDevtools initialIsOpen={false} />

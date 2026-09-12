@@ -1,11 +1,18 @@
 import { useQuery } from '@tanstack/react-query'
 import { apiConfig } from '../config/api'
+import { useLeagueContext } from './useLeagueContext'
 
 export function useOverallStandings() {
+  const { data: leagueContext } = useLeagueContext()
+
   return useQuery({
-    queryKey: ['overallStandings', '2025'],
+    queryKey: ['overallStandings', leagueContext?.season, leagueContext?.league_id],
     queryFn: async () => {
-      const response = await fetch(`${apiConfig.endpoints.overall}?season=2025`, {
+      const params = new URLSearchParams({
+        season: leagueContext.season,
+        league_id: leagueContext.league_id
+      })
+      const response = await fetch(`${apiConfig.endpoints.overall}?${params}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -34,6 +41,7 @@ export function useOverallStandings() {
         playoffPct: team.playoff_percentage ? `${team.playoff_percentage}%` : '0.0%',
       }))
     },
+    enabled: !!leagueContext,
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 30, // 30 minutes
   })

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useSleeperProjections, useSleeperRosters, useSleeperUsers, useSleeperPlayers, useSleeperMatchups } from './useSleeper'
 import { useActiveGameTime } from './useActiveGameTime'
+import { useLeagueContext } from './useLeagueContext'
 
 // Hook to return all weeks 1-17 (no API calls needed)
 export function useAvailableWeeks() {
@@ -17,6 +18,7 @@ export function useAvailableWeeks() {
 
 // Hook to get weekly standings for a specific week using Sleeper API
 export function useWeeklyStandings(week, pollingInterval = null) {
+  const { data: leagueContext } = useLeagueContext()
   // Check if it's an active game time
   const isActiveGameTime = useActiveGameTime()
   
@@ -30,7 +32,7 @@ export function useWeeklyStandings(week, pollingInterval = null) {
   const { data: projectionsData } = useSleeperProjections({ week, pollingInterval: activePollingInterval })
 
   return useQuery({
-    queryKey: ['weeklyStandings', week],
+    queryKey: ['weeklyStandings', leagueContext?.league_id, leagueContext?.season, week],
     queryFn: async () => {
       if (!week || !rosters || !users || !players) return []
       
@@ -125,7 +127,7 @@ export function useWeeklyStandings(week, pollingInterval = null) {
 
       return standings
     },
-    enabled: !!week && !!rosters && !!users && !!players && !!matchups,
+    enabled: !!leagueContext && !!week && !!rosters && !!users && !!players && !!matchups,
     staleTime: activePollingInterval ? activePollingInterval : 1000 * 60 * 2, // Match polling interval when active, 2 minutes otherwise
     gcTime: 1000 * 60 * 10, // 10 minutes
     refetchInterval: activePollingInterval,
