@@ -4,6 +4,7 @@ import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
 
 export class InfrastructureStack extends cdk.Stack {
@@ -120,6 +121,12 @@ export class InfrastructureStack extends cdk.Stack {
 
     // Lambda Functions
 
+    const weekFinalizerLogGroup = new logs.LogGroup(this, 'WeekFinalizerLogGroup', {
+      logGroupName: '/aws/lambda/ff-week-finalizer',
+      retention: logs.RetentionDays.ONE_WEEK,
+      removalPolicy: cdk.RemovalPolicy.DESTROY
+    });
+
     const weekFinalizerFunction = new lambda.Function(this, 'WeekFinalizer', {
       functionName: 'ff-week-finalizer',
       runtime: lambda.Runtime.PYTHON_3_11,
@@ -134,13 +141,17 @@ export class InfrastructureStack extends cdk.Stack {
         LEAGUE_DATA_TABLE: leagueDataTable.tableName,
       },
       timeout: cdk.Duration.minutes(15),
-      // Overall standings are recomputed from all finalized weeks. Serializing
-      // invocations prevents overlapping backlog runs from publishing stale totals.
-      reservedConcurrentExecutions: 1,
+      logGroup: weekFinalizerLogGroup,
       layers: [requestsLayer, commonUtilsLayer, standingsCalculationLayer]
     });
 
     // Monte Carlo Simulation Lambda (vectorized with NumPy)
+    const monteCarloLogGroup = new logs.LogGroup(this, 'MonteCarloLogGroup', {
+      logGroupName: '/aws/lambda/ff-monte-carlo',
+      retention: logs.RetentionDays.ONE_WEEK,
+      removalPolicy: cdk.RemovalPolicy.DESTROY
+    });
+
     const monteCarloFunction = new lambda.Function(this, 'MonteCarloFunction', {
       functionName: 'ff-monte-carlo',
       runtime: lambda.Runtime.PYTHON_3_11,
@@ -156,6 +167,7 @@ export class InfrastructureStack extends cdk.Stack {
       },
       timeout: cdk.Duration.minutes(10),
       memorySize: 3008,  // High memory for NumPy operations
+      logGroup: monteCarloLogGroup,
       layers: [
         requestsLayer,
         commonUtilsLayer,
@@ -164,6 +176,12 @@ export class InfrastructureStack extends cdk.Stack {
           'arn:aws:lambda:us-west-2:336392948345:layer:AWSSDKPandas-Python311:22'
         )
       ]
+    });
+
+    const apiLogGroup = new logs.LogGroup(this, 'ApiLogGroup', {
+      logGroupName: '/aws/lambda/ff-api-handler',
+      retention: logs.RetentionDays.ONE_WEEK,
+      removalPolicy: cdk.RemovalPolicy.DESTROY
     });
 
     const apiFunction = new lambda.Function(this, 'ApiFunction', {
@@ -180,6 +198,7 @@ export class InfrastructureStack extends cdk.Stack {
       },
       timeout: cdk.Duration.seconds(180),
       memorySize: 512,
+      logGroup: apiLogGroup,
       layers: [requestsLayer, commonUtilsLayer]
     });
 

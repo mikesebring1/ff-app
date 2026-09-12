@@ -24,6 +24,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 FINALIZATION_DATA_TYPE = "week_finalization"
+RUN_LEASE_DATA_TYPE = "finalization_run_lease"
 LEASE_SECONDS = 20 * 60
 DEFAULT_PLAYOFF_WEEK_START = 16
 
@@ -75,6 +76,66 @@ def requested_force_weeks(event, completed_weeks):
 
 def finalization_id(league_id, season, week):
     return f"{league_id}:{season}:{week}"
+
+
+def run_lease_id(league_id, season):
+    return f"{league_id}:{season}"
+
+
+def acquire_run_lease(table, league_id, season, attempt_id, now=None):
+    """Serialize all finalization work for one league season."""
+    now = int(time.time()) if now is None else int(now)
+    try:
+        table.update_item(
+            Key={
+                "data_type": RUN_LEASE_DATA_TYPE,
+                "id": run_lease_id(league_id, season),
+            },
+            UpdateExpression=(
+                "SET attempt_id = :attempt_id, league_id = :league_id, "
+                "season = :season, started_at = :now, lease_expires_at = :lease_expires_at"
+            ),
+            ConditionExpression=(
+                "attribute_not_exists(lease_expires_at) OR lease_expires_at < :now"
+            ),
+            ExpressionAttributeValues={
+                ":attempt_id": attempt_id,
+                ":league_id": league_id,
+                ":season": season,
+                ":now": now,
+                ":lease_expires_at": now + LEASE_SECONDS,
+            },
+        )
+        return True
+    except ClientError as error:
+        if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+            return False
+        raise
+
+
+def release_run_lease(table, league_id, season, attempt_id, now=None):
+    """Release a run lease without disturbing a newer lease owner."""
+    now = int(time.time()) if now is None else int(now)
+    try:
+        table.update_item(
+            Key={
+                "data_type": RUN_LEASE_DATA_TYPE,
+                "id": run_lease_id(league_id, season),
+            },
+            UpdateExpression=(
+                "SET released_at = :now REMOVE lease_expires_at, attempt_id"
+            ),
+            ConditionExpression="attempt_id = :attempt_id",
+            ExpressionAttributeValues={
+                ":attempt_id": attempt_id,
+                ":now": now,
+            },
+        )
+        return True
+    except ClientError as error:
+        if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+            return False
+        raise
 
 
 def acquire_week(table, league_id, season, week, attempt_id, force=False, now=None):
@@ -290,63 +351,77 @@ def run_finalization(event, league_context, tables, standings_service, lambda_cl
     season = league_context["season"]
     completed_weeks = completed_regular_season_weeks(league_context)
     force_weeks = requested_force_weeks(event, completed_weeks)
+    if not completed_weeks:
+        return {"season": season, "league_id": league_id, "weeks_processed": []}
+
     attempt_id = attempt_id or str(uuid.uuid4())
     state_table = tables["league_data"]
 
-    acquired = [
-        week for week in completed_weeks
-        if acquire_week(
-            state_table,
-            league_id,
-            season,
-            week,
-            attempt_id,
-            force=week in force_weeks,
-        )
-    ]
-    if not acquired:
-        return {"season": season, "league_id": league_id, "weeks_processed": []}
+    if not acquire_run_lease(state_table, league_id, season, attempt_id):
+        return {
+            "season": season,
+            "league_id": league_id,
+            "weeks_processed": [],
+            "skipped": "finalization_already_running",
+        }
 
-    hashes = {}
     try:
-        expected_roster_ids = cache_league_data(league_id, season, state_table)
-        for week in acquired:
-            matchups = fetch_sleeper_data(
-                f"https://api.sleeper.app/v1/league/{league_id}/matchups/{week}"
+        acquired = [
+            week for week in completed_weeks
+            if acquire_week(
+                state_table,
+                league_id,
+                season,
+                week,
+                attempt_id,
+                force=week in force_weeks,
             )
-            validate_matchups(
-                matchups,
-                league_context.get("total_rosters"),
-                expected_roster_ids,
-            )
-            input_hash = hashlib.sha256(
-                json.dumps(matchups, sort_keys=True, separators=(",", ":")).encode("utf-8")
-            ).hexdigest()
-            store_week_matchups(state_table, league_id, season, week, matchups, input_hash)
-            results = standings_service.calculate_and_store(
-                matchups, league_id, season, week, include_player_details=True
-            )
-            if not results:
-                raise RuntimeError(f"Sleeper returned no standings results for week {week}")
-            hashes[week] = input_hash
+        ]
+        if not acquired:
+            return {"season": season, "league_id": league_id, "weeks_processed": []}
 
-        invoke_playoff_projection(
-            lambda_client,
-            os.environ["MONTE_CARLO_FUNCTION"],
-            acquired,
-        )
-        for week in acquired:
-            mark_week_complete(
-                state_table, league_id, season, week, attempt_id, hashes[week]
-            )
-    except Exception as error:
-        for week in acquired:
-            mark_week_failed(
-                state_table, league_id, season, week, attempt_id, str(error)
-            )
-        raise
+        hashes = {}
+        try:
+            expected_roster_ids = cache_league_data(league_id, season, state_table)
+            for week in acquired:
+                matchups = fetch_sleeper_data(
+                    f"https://api.sleeper.app/v1/league/{league_id}/matchups/{week}"
+                )
+                validate_matchups(
+                    matchups,
+                    league_context.get("total_rosters"),
+                    expected_roster_ids,
+                )
+                input_hash = hashlib.sha256(
+                    json.dumps(matchups, sort_keys=True, separators=(",", ":")).encode("utf-8")
+                ).hexdigest()
+                store_week_matchups(state_table, league_id, season, week, matchups, input_hash)
+                results = standings_service.calculate_and_store(
+                    matchups, league_id, season, week, include_player_details=True
+                )
+                if not results:
+                    raise RuntimeError(f"Sleeper returned no standings results for week {week}")
+                hashes[week] = input_hash
 
-    return {"season": season, "league_id": league_id, "weeks_processed": acquired}
+            invoke_playoff_projection(
+                lambda_client,
+                os.environ["MONTE_CARLO_FUNCTION"],
+                acquired,
+            )
+            for week in acquired:
+                mark_week_complete(
+                    state_table, league_id, season, week, attempt_id, hashes[week]
+                )
+        except Exception as error:
+            for week in acquired:
+                mark_week_failed(
+                    state_table, league_id, season, week, attempt_id, str(error)
+                )
+            raise
+
+        return {"season": season, "league_id": league_id, "weeks_processed": acquired}
+    finally:
+        release_run_lease(state_table, league_id, season, attempt_id)
 
 
 def lambda_handler(event, context):

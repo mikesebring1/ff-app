@@ -117,7 +117,7 @@ For each completed week, the controller:
 
 Before writing week data, the finalizer requires the matchup response to contain exactly the league's configured number of unique, known roster IDs. A partial, duplicate, or unknown roster set fails the lease and remains retryable, including during forced correction processing.
 
-Failed work remains retryable. A completion marker is written only after all required writes and playoff projections succeed. Reserved concurrency of one serializes backlog and recovery invocations so separate week batches cannot overwrite overall standings with stale aggregates. A force-reprocess operation remains available only through an IAM-authenticated direct Lambda invocation, such as `{"force_week": 7}`. It is not exposed through API Gateway.
+Failed work remains retryable. A completion marker is written only after all required writes and playoff projections succeed. A conditional season-wide lease serializes backlog and recovery invocations so separate week batches cannot overwrite overall standings with stale aggregates. Its 20-minute expiry exceeds the Lambda's 15-minute timeout and recovers automatically after a crash without consuming account-wide reserved concurrency. A force-reprocess operation remains available only through an IAM-authenticated direct Lambda invocation, such as `{"force_week": 7}`. It is not exposed through API Gateway.
 
 The finalizer should process only missing or explicitly reprocessed weeks. It should not recalculate the entire season during every scheduled check.
 
@@ -144,14 +144,15 @@ Hourly scheduling is intentionally simple and cheap. A no-op run only resolves S
 
 ### Deleted-stack recovery
 
-The previous CloudFormation stack was manually deleted, leaving `ff-weekly-standings`, `ff-overall-standings`, and `ff-league-data` unmanaged because of their retain policies. An empty `InfrastructureStack` shell may remain in `REVIEW_IN_PROGRESS`. None of these AWS recovery actions have been performed by this code change.
+The previous CloudFormation stack was manually deleted, leaving `ff-weekly-standings`, `ff-overall-standings`, and `ff-league-data` unmanaged because of their retain policies. An empty `InfrastructureStack` shell may remain in `REVIEW_IN_PROGRESS` or `ROLLBACK_COMPLETE`. None of these AWS recovery actions have been performed by this code change.
 
 1. Verify that the retained tables' keys match the CDK definitions.
 2. Delete the empty stack shell and wait for deletion.
-3. Run `npx cdk deploy InfrastructureStack --import-existing-resources` from `infra/` and confirm the change set imports all three tables.
-4. Copy the new `ApiUrl` stack output to Vercel's required `VITE_API_URL` variable and redeploy the frontend.
-5. Run drift detection and verify the schedule and read API.
-6. Separately delete the old unmanaged `ff-polling-state` table and `ff-polling-service` repository after the replacement is verified.
+3. Delete orphaned Lambda log groups for `ff-api-handler`, `ff-monte-carlo`, and `ff-week-finalizer`; preserve the three retained DynamoDB tables.
+4. Run `npx cdk deploy InfrastructureStack --import-existing-resources` from `infra/` and confirm the change set imports all three tables.
+5. Copy the new `ApiUrl` stack output to Vercel's required `VITE_API_URL` variable and redeploy the frontend.
+6. Run drift detection and verify the schedule and read API.
+7. Separately delete the old unmanaged `ff-polling-state` table and `ff-polling-service` repository after the replacement is verified.
 
 A plain deploy must not precede the import deployment because the retained fixed table names would collide.
 

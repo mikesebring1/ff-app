@@ -42,7 +42,7 @@ There is no ECS, Fargate, ECR, VPC, polling-state table, admin key, or public mu
 - The weekly frontend reads Sleeper directly and calculates the displayed live order and record.
 - The hourly finalizer resolves the active league and processes every completed week without a completion marker.
 - Finalization stores a raw matchup snapshot, recalculates canonical weekly and overall standings, runs Monte Carlo projections, and only then marks the week complete.
-- Conditional leases prevent concurrent duplicate work. Failed work remains retryable, and an IAM-authenticated direct Lambda invocation can force a completed week to reprocess.
+- A conditional season-wide lease serializes finalizer runs, while per-week leases track completion and retries. Failed work remains retryable, and an IAM-authenticated direct Lambda invocation can force a completed week to reprocess.
 - Finalizer job records and league metadata live in `ff-league-data`; no separate state table is needed.
 
 ## Important current constraints

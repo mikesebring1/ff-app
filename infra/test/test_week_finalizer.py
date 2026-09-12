@@ -68,6 +68,47 @@ class WeekDetectionTests(unittest.TestCase):
 
 
 class IdempotencyTests(unittest.TestCase):
+    def test_active_season_run_is_skipped_before_week_acquisition(self):
+        tables = {"league_data": Mock()}
+        acquire_week = Mock()
+
+        with patch.object(week_finalizer, "acquire_run_lease", return_value=False), \
+             patch.object(week_finalizer, "acquire_week", acquire_week):
+            result = week_finalizer.run_finalization(
+                {}, context(3), tables, Mock(), Mock(), "blocked-attempt"
+            )
+
+        self.assertEqual(result["weeks_processed"], [])
+        self.assertEqual(result["skipped"], "finalization_already_running")
+        acquire_week.assert_not_called()
+
+    def test_season_run_lease_is_conditional_and_retryable_after_expiry(self):
+        table = Mock()
+        table.update_item.side_effect = FakeClientError("ConditionalCheckFailedException")
+
+        self.assertFalse(
+            week_finalizer.acquire_run_lease(
+                table, "league-2026", "2026", "attempt-2", now=100
+            )
+        )
+        condition = table.update_item.call_args.kwargs["ConditionExpression"]
+        self.assertIn("lease_expires_at < :now", condition)
+
+    def test_season_run_lease_is_released_when_no_week_needs_processing(self):
+        tables = {"league_data": Mock()}
+
+        with patch.object(week_finalizer, "acquire_run_lease", return_value=True), \
+             patch.object(week_finalizer, "acquire_week", return_value=False), \
+             patch.object(week_finalizer, "release_run_lease") as release:
+            result = week_finalizer.run_finalization(
+                {}, context(3), tables, Mock(), Mock(), "idle-attempt"
+            )
+
+        self.assertEqual(result["weeks_processed"], [])
+        release.assert_called_once_with(
+            tables["league_data"], "league-2026", "2026", "idle-attempt"
+        )
+
     def test_completed_or_active_week_is_not_acquired(self):
         table = Mock()
         table.update_item.side_effect = FakeClientError("ConditionalCheckFailedException")
@@ -99,6 +140,7 @@ class IdempotencyTests(unittest.TestCase):
              patch.object(week_finalizer, "invoke_playoff_projection", side_effect=RuntimeError("boom")), \
              patch.object(week_finalizer, "mark_week_failed") as mark_failed, \
              patch.object(week_finalizer, "mark_week_complete") as mark_complete, \
+             patch.object(week_finalizer, "release_run_lease") as release_run, \
              patch.dict(os.environ, {"MONTE_CARLO_FUNCTION": "mc"}):
             with self.assertRaisesRegex(RuntimeError, "boom"):
                 week_finalizer.run_finalization(
@@ -106,6 +148,9 @@ class IdempotencyTests(unittest.TestCase):
                 )
             self.assertEqual(mark_failed.call_count, 2)
             mark_complete.assert_not_called()
+            release_run.assert_called_once_with(
+                table, "league-2026", "2026", "attempt-1"
+            )
 
         with patch.object(week_finalizer, "acquire_week", return_value=True), \
              patch.object(week_finalizer, "cache_league_data", return_value={"1", "2"}), \

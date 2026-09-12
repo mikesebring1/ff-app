@@ -37,13 +37,35 @@ describe('streamlined infrastructure', () => {
     });
     template.hasResourceProperties('AWS::Lambda::Function', Match.objectLike({
       FunctionName: 'ff-week-finalizer',
-      ReservedConcurrentExecutions: 1,
       Environment: Match.objectLike({
         Variables: Match.objectLike({
           SLEEPER_LEAGUE_SEED_ID: '1388309161581752320'
         })
       })
     }));
+
+    const functions = template.findResources('AWS::Lambda::Function');
+    expect(
+      Object.values(functions).every(
+        (resource: any) => resource.Properties.ReservedConcurrentExecutions === undefined
+      )
+    ).toBe(true);
+
+    template.resourceCountIs('AWS::Logs::LogGroup', 3);
+    for (const logGroupName of [
+      '/aws/lambda/ff-week-finalizer',
+      '/aws/lambda/ff-monte-carlo',
+      '/aws/lambda/ff-api-handler'
+    ]) {
+      template.hasResource('AWS::Logs::LogGroup', {
+        DeletionPolicy: 'Delete',
+        UpdateReplacePolicy: 'Delete',
+        Properties: Match.objectLike({
+          LogGroupName: logGroupName,
+          RetentionInDays: 7
+        })
+      });
+    }
 
     const methods = template.findResources('AWS::ApiGateway::Method');
     const nonOptions = Object.values(methods).filter(
