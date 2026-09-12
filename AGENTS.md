@@ -28,27 +28,30 @@ The frontend is a React/Vite PWA hosted on Vercel. Weekly standings are assemble
 
 The CDK stack in `infra/lib/infrastructure-stack.ts` defines:
 
-- Four on-demand DynamoDB tables
-- One API Lambda
-- One historical-backfill Lambda
+- Three retained on-demand DynamoDB tables
+- One read-only API Lambda and API Gateway
+- One scheduled week-finalizer Lambda
 - One Monte Carlo playoff Lambda
-- A one-off Fargate polling task, ECR repository, VPC, and ECS cluster
+- An hourly EventBridge rule
 - Shared requests, utility, and standings-calculation Lambda layers
 
-There is no EventBridge schedule, ECS service, or separate calculate-standings Lambda. Historical backfill and the polling task call the `packages/ff-standings` library directly.
+There is no ECS, Fargate, ECR, VPC, polling-state table, admin key, or public mutation endpoint.
 
 ## Data flow
 
-- The weekly frontend reads Sleeper directly and calculates the displayed weekly order and record.
-- Historical backfill stores completed Sleeper weeks and recalculates weekly and overall DynamoDB records.
-- The Fargate task polls the current matchup every ten seconds while enabled and recalculates persisted standings when team totals change.
-- The Monte Carlo Lambda reads completed weekly rows and writes playoff percentages to overall standings.
+- The weekly frontend reads Sleeper directly and calculates the displayed live order and record.
+- The hourly finalizer resolves the active league and processes every completed week without a completion marker.
+- Finalization stores a raw matchup snapshot, recalculates canonical weekly and overall standings, runs Monte Carlo projections, and only then marks the week complete.
+- Conditional leases prevent concurrent duplicate work. Failed work remains retryable, and an IAM-authenticated direct Lambda invocation can force a completed week to reprocess.
+- Finalizer job records and league metadata live in `ff-league-data`; no separate state table is needed.
 
 ## Important current constraints
 
 - Active season, week, and league ID come from the public league-context endpoint and shared Sleeper resolver.
-- Browser weekly scoring and the shared Python calculator differ in tie handling.
-- Polling lifecycle hardening and automatic scheduling are future behavior changes, outside cleanup-only work.
-- The repository currently has little automated test coverage.
+- Browser weekly scoring and the shared Python calculator still differ in tie handling.
+- The frontend still fetches Sleeper's full player directory; replacing that with the compact backend map is a future milestone.
+- Known Monte Carlo math issues remain outside the automated-finalization change.
+- The deleted AWS stack must be recovered by importing the three retained tables; see `infra/README.md` before deployment.
+- `VITE_API_URL` is required. Use the deployed stack's `ApiUrl` output locally and in Vercel; there is no source-code fallback.
 
 Treat generated CDK output, TypeScript emit, Python bytecode, setuptools build output, and package metadata as disposable. They are ignored and should not be committed.

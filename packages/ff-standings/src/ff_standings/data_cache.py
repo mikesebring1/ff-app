@@ -51,13 +51,12 @@ class DataCache:
             )
             
             if 'Item' not in response:
-                raise ValueError("No players data found in DynamoDB. Run 'Fetch Players Data' first.")
+                raise ValueError("No players data found in DynamoDB")
             
             item = response['Item']
             if item.get('league_id') != league_id or item.get('season') != season:
                 raise ValueError(
-                    f"Cached players do not match league {league_id}, season {season}. "
-                    "Run 'Fetch Players Data' for the active league."
+                    f"Cached players do not match league {league_id}, season {season}"
                 )
             self._players_data = item['data']
             
@@ -153,7 +152,7 @@ class DataCache:
             return {}
     
     def load_all_cache(self, league_id: str, season: str) -> None:
-        """Load both players and team names into cache (for Fargate startup)"""
+        """Load both players and team names into the in-memory cache."""
         logger.info("Loading all cached data...")
         self.get_players_data(league_id, season)
         self.get_team_names(league_id, season)

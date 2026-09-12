@@ -19,7 +19,7 @@ from ff_standings.service import StandingsService  # noqa: E402
 
 
 class StandingsServiceCacheTests(unittest.TestCase):
-    def test_polling_startup_forwards_resolved_context_to_cache(self):
+    def test_cache_load_forwards_resolved_context(self):
         service = StandingsService.__new__(StandingsService)
         service.enable_persistent_cache = True
         service.data_cache = Mock()

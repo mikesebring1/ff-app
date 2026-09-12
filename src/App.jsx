@@ -18,39 +18,9 @@ import { Moon, Sun, Menu } from "lucide-react"
 import WeeklyStandings from './components/WeeklyStandings'
 import OverallStandings from './components/OverallStandings'
 import PlayoffBracket from './components/PlayoffBracket'
-import { apiConfig, adminApiCall, clearPollingStatusCache, isPollingActive } from './config/api'
 import { useTeams } from './hooks/useTeams'
 import { useNetworkStatus } from './hooks/useNetworkStatus'
 import { useCurrentWeek } from './hooks/useCurrentWeek'
-
-const ADMIN_ACTIONS = [
-  {
-    label: 'Sync Historical Data',
-    endpoint: apiConfig.endpoints.syncHistorical,
-    successLog: 'Historical sync started',
-    successAlert: 'Historical data sync started!',
-    failureLog: 'Failed to sync historical data',
-    failureAlert: 'Failed to start historical sync'
-  },
-  {
-    label: 'Calculate Playoffs',
-    endpoint: apiConfig.endpoints.calculatePlayoffs,
-    successLog: 'Playoff simulation started',
-    successAlert: 'Playoff simulation started!',
-    failureLog: 'Failed to calculate playoffs',
-    failureAlert: 'Failed to start playoff simulation'
-  },
-  {
-    label: 'Fetch Players Data',
-    endpoint: apiConfig.endpoints.fetchPlayers,
-    method: 'GET',
-    successLog: 'Players data fetched',
-    successAlert: 'Players data fetched successfully!',
-    failureLog: 'Failed to fetch players',
-    failureAlert: 'Failed to fetch players data',
-    logFullResponse: true
-  }
-]
 
 function App() {
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -62,10 +32,6 @@ function App() {
   })
 
   const [selectedTeam, setSelectedTeam] = useState('All Teams')
-  const [isPolling, setIsPolling] = useState(false)
-  const [isAdmin, setIsAdmin] = useState(() => {
-    return localStorage.getItem('isAdmin') === 'true'
-  })
 
   // Fetch team names dynamically from API
   const { teams, loading: teamsLoading, error: teamsError } = useTeams()
@@ -93,54 +59,6 @@ function App() {
       }
     }
   }, [teams, teamsLoading, teamsError, selectedTeam])
-
-  // Check for admin URL parameter on app load
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search)
-    const isAdminRequest = urlParams.get('admin') === 'true'
-
-    if (!isAdminRequest || isAdmin) {
-      return
-    }
-
-    const authenticateAdmin = async () => {
-      const apiKey = prompt('Enter admin API key:')
-      if (!apiKey) return
-
-      try {
-        console.log('Attempting admin validation with URL:', apiConfig.endpoints.adminValidate)
-
-        const response = await fetch(apiConfig.endpoints.adminValidate, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Admin-Key': apiKey
-          },
-          body: JSON.stringify({ action: 'validate' })
-        })
-
-        console.log('Response status:', response.status)
-        console.log('Response headers:', response.headers)
-
-        if (response.status === 200) {
-          setIsAdmin(true)
-          localStorage.setItem('isAdmin', 'true')
-          localStorage.setItem('adminApiKey', apiKey)
-          alert('Admin access granted!')
-          window.history.replaceState({}, document.title, window.location.pathname)
-        } else {
-          const errorText = await response.text()
-          console.error('API response error:', errorText)
-          alert(`Invalid API key (Status: ${response.status})`)
-        }
-      } catch (error) {
-        console.error('Admin validation error:', error)
-        alert(`Unable to validate admin access: ${error.message}`)
-      }
-    }
-
-    authenticateAdmin()
-  }, [isAdmin])
 
   // Handle dark mode
   useEffect(() => {
@@ -175,44 +93,10 @@ function App() {
     }
   }, [])
 
-  // Fetch initial polling status using existing promise-based caching
-  useEffect(() => {
-    // Clear any stale cache on app load to ensure fresh status
-    clearPollingStatusCache()
-
-    isPollingActive()
-      .then(pollingActive => {
-        console.log('Initial polling status fetched:', pollingActive)
-        setIsPolling(pollingActive)
-      })
-      .catch(error => {
-        console.error('Failed to fetch initial polling status:', error)
-        // Keep default false value
-      })
-  }, [])
-
   const handleUpdate = () => {
     if (swRegistration && swRegistration.waiting) {
       swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' })
       window.location.reload()
-    }
-  }
-
-  const runAdminAction = async (action) => {
-    if (!isAdmin) {
-      console.log('Admin access required')
-      return
-    }
-
-    try {
-      const response = await adminApiCall(action.endpoint, {
-        method: action.method || 'POST'
-      })
-      console.log(`${action.successLog}:`, action.logFullResponse ? response : response.message)
-      alert(action.successAlert)
-    } catch (error) {
-      console.error(`${action.failureLog}:`, error)
-      alert(action.failureAlert)
     }
   }
 
@@ -275,54 +159,6 @@ function App() {
                     </DropdownMenuItem>
                   ))
                 )}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuSeparator />
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <span>Admin</span>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                <DropdownMenuItem
-                  className="flex items-center justify-between w-full"
-                  onSelect={(e) => e.preventDefault()}
-                >
-                  <span>Live Updates</span>
-                  <Switch
-                    checked={isPolling}
-                    onCheckedChange={async () => {
-                      if (isAdmin) {
-                        try {
-                          const response = await adminApiCall(apiConfig.endpoints.pollingToggle, {
-                            method: 'POST'
-                          })
-                          setIsPolling(response.enabled)
-                          clearPollingStatusCache() // Clear the cache when toggling
-                          console.log('Polling toggled:', response.message)
-                        } catch (error) {
-                          console.error('Failed to toggle polling:', error)
-                          alert('Failed to toggle polling')
-                        }
-                      } else {
-                        console.log('Admin access required')
-                      }
-                    }}
-                    disabled={!isAdmin}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                </DropdownMenuItem>
-                {ADMIN_ACTIONS.map((action) => (
-                  <DropdownMenuItem
-                    key={action.label}
-                    onClick={(event) => {
-                      event.preventDefault()
-                      runAdminAction(action)
-                    }}
-                    className={isAdmin ? 'cursor-pointer' : 'text-muted-foreground cursor-default'}
-                  >
-                    {action.label}
-                  </DropdownMenuItem>
-                ))}
               </DropdownMenuSubContent>
             </DropdownMenuSub>
           </DropdownMenuContent>

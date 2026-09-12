@@ -25,11 +25,13 @@ AppSync, DynamoDB Streams, and native iOS development are deferred. They do not 
 
 ## Current architecture
 
-The weekly screen currently polls Sleeper in the browser and calculates live standings in JavaScript. A manually launched one-off Fargate task separately polls Sleeper and persists another calculation to DynamoDB. The two paths have different tie behavior.
+The weekly screen polls Sleeper in the browser and calculates live standings in JavaScript. The backend now contains an hourly week finalizer that persists completed weeks and invokes the Monte Carlo Lambda without an admin action. Conditional records in `ff-league-data` provide leases, completion state, and catch-up after downtime.
 
-The frontend also applies the live polling interval to matchups, rosters, and projections. Only matchup scores require frequent refreshes. The full player directory is fetched by each browser even though the UI only needs metadata for players relevant to this league.
+The API is read-only: `/league-context`, `/weekly`, and `/overall`. The admin prompt, key, mutation routes, polling state, ECS/Fargate task, ECR repository definition, and polling VPC have been removed from the application and CDK template.
 
-The backend contains a historical-backfill Lambda and a Monte Carlo Lambda, but both are manually invoked. Before Milestone 0, the application and infrastructure also contained fixed 2025 season values and a season-specific Sleeper league ID.
+The frontend still applies the live polling interval to matchups, rosters, and projections. Only matchup scores require frequent refreshes. The full player directory is still fetched by each browser even though the UI only needs metadata for players relevant to this league. Those are the next cleanup milestones.
+
+The refactored stack has not been deployed. Three tables retained from the manually deleted stack must be imported during the replacement deployment.
 
 ## Target data flows
 
@@ -89,7 +91,7 @@ The compact player map can be stored as one league-season item while it remains 
 
 League IDs change between Sleeper seasons. NFL state supplies the current season and week but does not identify this league. Resolve the current league through a stable configured Sleeper user ID plus an expected league identity, and fail clearly if the lookup finds zero or multiple matches. Do not silently select an arbitrary league.
 
-A newly rostered player missing from the compact map may temporarily display a fallback name. The next context refresh repairs it. The scheduled refresh should run after the league's primary waiver period and can also be invoked manually as a recovery operation.
+A newly rostered player missing from the compact map may temporarily display a fallback name. The next scheduled finalization refresh repairs it. The finalizer also bootstraps the roster-scoped player cache itself, so no manual player fetch is required.
 
 ### End-of-week processing
 
@@ -110,10 +112,12 @@ For each completed week, the controller:
 3. Runs the canonical vs-everyone calculation.
 4. Stores the raw final matchup snapshot and calculated weekly standings.
 5. Recalculates overall standings.
-6. Runs playoff projections when the league is in the configured prediction window.
+6. Runs playoff projections once after the batch of missing weeks is written.
 7. Marks the week complete with timestamps and input hashes.
 
-Failed work remains retryable. A completion marker is written only after all required writes succeed. A force-reprocess operation remains available for Sleeper stat corrections or administrative recovery.
+Before writing week data, the finalizer requires the matchup response to contain exactly the league's configured number of unique, known roster IDs. A partial, duplicate, or unknown roster set fails the lease and remains retryable, including during forced correction processing.
+
+Failed work remains retryable. A completion marker is written only after all required writes and playoff projections succeed. Reserved concurrency of one serializes backlog and recovery invocations so separate week batches cannot overwrite overall standings with stale aggregates. A force-reprocess operation remains available only through an IAM-authenticated direct Lambda invocation, such as `{"force_week": 7}`. It is not exposed through API Gateway.
 
 The finalizer should process only missing or explicitly reprocessed weeks. It should not recalculate the entire season during every scheduled check.
 
@@ -132,33 +136,30 @@ The finalizer should process only missing or explicitly reprocessed weeks. It sh
 
 The JavaScript and Python standings calculators must share fixture files covering normal rankings, ties, score corrections, zero scores, and reordered input. Both implementations must produce the same records before the backend is treated as canonical for final results.
 
-## AWS resources after migration
+## AWS resources
 
-Retain:
+The template contains exactly three retained DynamoDB tables, the read API, the finalizer, the Monte Carlo Lambda, shared Lambda layers, and one hourly EventBridge rule. Job state shares `ff-league-data`. There are no container, VPC, polling-state, or public mutation resources.
 
-- DynamoDB tables for weekly, overall, league-context, and job-state data. Existing tables can be reused where their keys fit the new records.
-- API Lambda and API Gateway for league context and persisted standings.
-- Historical recovery/finalization Lambda.
-- Monte Carlo playoff Lambda.
-- EventBridge schedule.
-- CloudWatch logs with short retention.
+Hourly scheduling is intentionally simple and cheap. A no-op run only resolves Sleeper state and attempts conditional acquisitions; player metadata and matchups are fetched only when a missing completed week is found. The full player directory is therefore downloaded by the backend about once per football week during normal operation.
 
-Remove after the scheduled finalizer has completed a production week successfully:
+### Deleted-stack recovery
 
-- Fargate polling task.
-- ECS cluster.
-- Polling ECR repository.
-- Polling VPC and security group.
-- Polling-state table and admin toggle UI.
-- IAM permissions used only to start and stop ECS tasks.
+The previous CloudFormation stack was manually deleted, leaving `ff-weekly-standings`, `ff-overall-standings`, and `ff-league-data` unmanaged because of their retain policies. An empty `InfrastructureStack` shell may remain in `REVIEW_IN_PROGRESS`. None of these AWS recovery actions have been performed by this code change.
 
-The removal must be a separate deployment after the replacement is verified. DynamoDB resources continue to use retain policies.
+1. Verify that the retained tables' keys match the CDK definitions.
+2. Delete the empty stack shell and wait for deletion.
+3. Run `npx cdk deploy InfrastructureStack --import-existing-resources` from `infra/` and confirm the change set imports all three tables.
+4. Copy the new `ApiUrl` stack output to Vercel's required `VITE_API_URL` variable and redeploy the frontend.
+5. Run drift detection and verify the schedule and read API.
+6. Separately delete the old unmanaged `ff-polling-state` table and `ff-polling-service` repository after the replacement is verified.
+
+A plain deploy must not precede the import deployment because the retained fixed table names would collide.
 
 ## Delivery plan
 
 ### Milestone 0: active league context
 
-Status: implemented in the working tree. The 2026 league is the permanent lineage seed, and the resolver uses stable member ID `475076051211382784`, the exact league name, and Sleeper's `previous_league_id` chain to validate future renewals.
+Status: implemented. The 2026 league is the permanent lineage seed, and the resolver uses stable member ID `475076051211382784`, the exact league name, and Sleeper's `previous_league_id` chain to validate future renewals.
 
 This is the first implementation slice because all later work depends on the correct season, week, and league ID.
 
@@ -177,7 +178,19 @@ Acceptance criteria:
 - The application refuses ambiguous league resolution with an actionable error.
 - No production code defaults silently to 2025.
 
-### Milestone 1: efficient foreground polling
+### Milestone 1: automated finalization and infrastructure removal
+
+Status: implemented locally, pending review and deployment.
+
+1. Convert historical backfill into an idempotent process-missing-weeks operation.
+2. Store conditional leases and completion markers in `ff-league-data`.
+3. Add hourly EventBridge scheduling and catch-up processing.
+4. Refresh required metadata automatically and invoke playoff projections.
+5. Keep force-reprocess available only through direct Lambda invocation.
+6. Remove the admin system and all ECS, Fargate, ECR, VPC, and polling resources from the template.
+7. Preserve the three retained table names and removal policies for import.
+
+### Milestone 2: efficient foreground polling
 
 1. Extract the frontend standings calculation into a pure module.
 2. Add shared scoring fixtures and make the JavaScript and Python calculators agree.
@@ -193,7 +206,7 @@ Acceptance criteria:
 - Historical weeks never poll.
 - JavaScript and Python return identical standings for the shared fixtures.
 
-### Milestone 2: live visual feedback
+### Milestone 3: live visual feedback
 
 1. Compare successive matchup snapshots by roster and player ID.
 2. Extend the existing score animation hook to handle player and team changes reliably.
@@ -201,7 +214,7 @@ Acceptance criteria:
 4. Add Motion layout animation for rank changes.
 5. Respect reduced-motion preferences and avoid replaying animations on initial load.
 
-### Milestone 3: compact league player map
+### Milestone 4: compact league player map
 
 1. Refresh the full Sleeper player directory in the backend once weekly.
 2. Filter it to IDs present on league rosters and retain only UI fields.
@@ -209,18 +222,12 @@ Acceptance criteria:
 4. Return it through the league-context endpoint.
 5. Remove the full player-directory request from the browser.
 
-### Milestone 4: automated finalization
+### Milestone 5: production validation
 
-1. Convert historical backfill into an idempotent process-missing-weeks operation.
-2. Add job-state records and conditional acquisition.
-3. Add EventBridge scheduling.
-4. Invoke playoff projections after a newly finalized week.
-5. Keep explicit force-reprocess and recovery paths.
-6. Validate one production weekly transition.
-
-### Milestone 5: retire live polling infrastructure
-
-Remove ECS, Fargate, ECR, VPC, polling state, toggle controls, and their permissions after Milestone 4 succeeds in production.
+1. Import the retained tables and deploy the replacement stack.
+2. Configure Vercel with the new API output and redeploy the PWA.
+3. Verify automatic catch-up and one live weekly transition.
+4. Remove the two unmanaged legacy resources after verification.
 
 ## Deferred options
 

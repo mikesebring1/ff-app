@@ -38,7 +38,7 @@ class StandingsService:
     def get_week_matchups(self, league_id: str, season: str, week: int) -> Optional[List[Dict[str, Any]]]:
         try:
             response = self.league_data_table.get_item(
-                Key={'data_type': 'matchups', 'id': f'{season}_{week}'}
+                Key={'data_type': 'matchups', 'id': f'{league_id}:{season}:{week}'}
             )
             if 'Item' in response:
                 item = response['Item']

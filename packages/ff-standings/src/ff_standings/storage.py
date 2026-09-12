@@ -10,6 +10,19 @@ from typing import List, Dict, Any
 logger = logging.getLogger(__name__)
 
 
+def scan_all(table, **scan_arguments):
+    """Read every DynamoDB scan page using the returned continuation key."""
+    items = []
+    request = dict(scan_arguments)
+    while True:
+        response = table.scan(**request)
+        items.extend(response.get('Items', []))
+        continuation_key = response.get('LastEvaluatedKey')
+        if not continuation_key:
+            return items
+        request['ExclusiveStartKey'] = continuation_key
+
+
 class StandingsStorage:
     def __init__(self, weekly_standings_table, overall_standings_table):
         self.weekly_standings_table = weekly_standings_table
@@ -42,18 +55,20 @@ class StandingsStorage:
                 }))
             except Exception as e:
                 logger.error(f"Error storing weekly result for {result['team_name']}: {e}")
+                raise
         logger.info(f"Stored weekly standings for week {week}")
     
     def update_overall_standings(self, league_id: str, season: str) -> None:
         try:
-            all_weeks = self.weekly_standings_table.scan(
+            all_weeks = scan_all(
+                self.weekly_standings_table,
                 FilterExpression=(
                     boto3.dynamodb.conditions.Attr('season_week').begins_with(f'{season}_')
                     & boto3.dynamodb.conditions.Attr('league_id').eq(league_id)
                 )
             )
             team_totals = {}
-            for item in all_weeks['Items']:
+            for item in all_weeks:
                 team_id = item['team_id']
                 team_name = item['team_name']
                 wins = float(item['wins'])      # Keep fractional wins
@@ -105,4 +120,3 @@ class StandingsStorage:
         except Exception as e:
             logger.error(f"Error updating overall standings: {e}")
             raise
-

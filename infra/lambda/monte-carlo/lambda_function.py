@@ -41,13 +41,7 @@ def lambda_handler(event, context):
         
     except Exception as e:
         logger.error(f"Monte Carlo simulation failed: {e}")
-        return {
-            'statusCode': 500,
-            'body': json.dumps({
-                'error': 'Monte Carlo simulation failed',
-                'details': str(e)
-            })
-        }
+        raise
 
 class MonteCarloService:
     def __init__(self):
@@ -372,15 +366,13 @@ class MonteCarloService:
             weeks_data = self.get_completed_weeks_data(league_id, season, current_week)
             
             if not weeks_data:
-                logger.error("No completed weeks data found")
-                return {'error': 'No completed weeks data found'}
+                raise RuntimeError("No completed weeks data found")
             
             # Build score pools for shrinkage sampling
             team_score_pools, league_score_pool = self.build_score_pools(weeks_data)
             
             if not team_score_pools or not league_score_pool:
-                logger.error("No score pools could be built")
-                return {'error': 'No score pools could be built'}
+                raise RuntimeError("No score pools could be built")
             
             # Run Monte Carlo simulation using shrinkage sampling
             playoff_percentages = self.simulate_remaining_season(
