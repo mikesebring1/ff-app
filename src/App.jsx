@@ -1,5 +1,6 @@
 import { useState, useEffect, useSyncExternalStore } from 'react'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
+import { useRegisterSW } from 'virtual:pwa-register/react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   DropdownMenu,
@@ -88,9 +89,11 @@ function App() {
     error: leagueContextError
   } = useCurrentWeek()
   
-  // PWA update handling
-  const [updateAvailable, setUpdateAvailable] = useState(false)
-  const [swRegistration, setSwRegistration] = useState(null)
+  const [updateInProgress, setUpdateInProgress] = useState(false)
+  const {
+    needRefresh: [updateAvailable],
+    updateServiceWorker,
+  } = useRegisterSW()
 
   // Reset a selection that no longer belongs to the active league.
   useEffect(() => {
@@ -108,31 +111,15 @@ function App() {
     persistThemePreference(getThemeStorage(window), themePreference)
   }, [isDarkMode, themePreference])
 
-  // PWA update handling
-  useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.ready.then((registration) => {
-        setSwRegistration(registration)
-        
-        // Listen for updates
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing
-          if (newWorker) {
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                setUpdateAvailable(true)
-              }
-            })
-          }
-        })
-      })
-    }
-  }, [])
+  const handleUpdate = async () => {
+    if (updateInProgress) return
 
-  const handleUpdate = () => {
-    if (swRegistration && swRegistration.waiting) {
-      swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' })
-      window.location.reload()
+    setUpdateInProgress(true)
+    try {
+      await updateServiceWorker(true)
+    } catch (error) {
+      console.error('Failed to activate the app update', error)
+      setUpdateInProgress(false)
     }
   }
 
@@ -242,9 +229,12 @@ function App() {
             <div className="mt-2 text-sm text-blue-600 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-400 px-3 py-1 rounded-full inline-block">
               <button 
                 onClick={handleUpdate}
-                className="underline hover:no-underline"
+                disabled={updateInProgress}
+                className="underline hover:no-underline disabled:cursor-wait disabled:no-underline"
               >
-                🔄 Update Available - Tap to refresh
+                {updateInProgress
+                  ? '🔄 Updating...'
+                  : '🔄 Update Available - Tap to refresh'}
               </button>
             </div>
           )}
