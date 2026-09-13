@@ -57,6 +57,10 @@ For a Sleeper stat correction, an AWS operator with `lambda:InvokeFunction` can 
 
 There is intentionally no API Gateway route for recovery operations.
 
+## Browser origins
+
+The read API returns CORS permission only for `https://madtownsfinest.app`, the stable `ff-app-vert.vercel.app` alias, and deployment domains belonging to the `mikes-projects-e5f6e59b.vercel.app` Vercel project namespace. The Lambda validates each request's exact `Origin` and echoes it when allowed because the CORS protocol does not support partial-host wildcards. Requests without an allowed browser origin can still reach the public read-only API, so CORS is a browser boundary rather than authentication.
+
 ## League identity
 
 The public `GET /league-context` route resolves season and week from Sleeper NFL state. It finds the league using:

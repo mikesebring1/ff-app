@@ -4,7 +4,18 @@ Shared functions for DynamoDB data type conversion and operations.
 """
 
 import json
+import re
 from decimal import Decimal
+
+
+ALLOWED_CORS_ORIGINS = {
+    'https://madtownsfinest.app',
+    'https://ff-app-vert.vercel.app',
+    'https://ff-app-mikes-projects-e5f6e59b.vercel.app',
+}
+VERCEL_DEPLOYMENT_ORIGIN = re.compile(
+    r'^https://ff-[a-z0-9-]+-mikes-projects-e5f6e59b\.vercel\.app$'
+)
 
 
 def convert_floats_to_decimal(obj):
@@ -44,16 +55,28 @@ class DecimalEncoder(json.JSONEncoder):
         return super(DecimalEncoder, self).default(o)
 
 
-def get_cors_headers():
+def is_allowed_cors_origin(origin):
+    """Return whether a browser origin belongs to this app or its Vercel project."""
+    if not isinstance(origin, str):
+        return False
+    return origin in ALLOWED_CORS_ORIGINS or bool(
+        VERCEL_DEPLOYMENT_ORIGIN.fullmatch(origin)
+    )
+
+
+def get_cors_headers(origin=None):
     """
     Standard CORS headers for all API responses.
     
     Returns:
         dict: Standard CORS headers for Fantasy Football API
     """
-    return {
+    headers = {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Content-Type',
         'Access-Control-Allow-Methods': 'GET, OPTIONS'
     }
+    if is_allowed_cors_origin(origin):
+        headers['Access-Control-Allow-Origin'] = origin
+        headers['Vary'] = 'Origin'
+    return headers

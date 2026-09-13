@@ -71,8 +71,18 @@ describe('streamlined infrastructure', () => {
     const nonOptions = Object.values(methods).filter(
       (method: any) => method.Properties.HttpMethod !== 'OPTIONS'
     );
+    const options = Object.values(methods).filter(
+      (method: any) => method.Properties.HttpMethod === 'OPTIONS'
+    );
     expect(nonOptions).toHaveLength(3);
     expect(nonOptions.every((method: any) => method.Properties.HttpMethod === 'GET')).toBe(true);
+    expect(options).toHaveLength(3);
+    expect(
+      Object.values(methods).every(
+        (method: any) => method.Properties.Integration.Type === 'AWS_PROXY'
+      )
+    ).toBe(true);
+    expect(rendered).not.toContain('Access-Control-Allow-Origin');
   });
 
   test('contains no retired polling or admin infrastructure', () => {

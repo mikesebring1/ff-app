@@ -140,6 +140,8 @@ The JavaScript and Python standings calculators must share fixture files coverin
 
 The template contains exactly three retained DynamoDB tables, the read API, the finalizer, the Monte Carlo Lambda, shared Lambda layers, and one hourly EventBridge rule. Job state shares `ff-league-data`. There are no container, VPC, polling-state, or public mutation resources.
 
+API Gateway sends both `GET` and `OPTIONS` requests through the read Lambda. The Lambda echoes `Access-Control-Allow-Origin` only for the production site, stable project aliases, and deployment hosts within the app's Vercel team namespace. This supports changing preview deployment names without granting every `vercel.app` site browser access. CORS does not authenticate direct HTTP clients.
+
 Hourly scheduling is intentionally simple and cheap. A no-op run only resolves Sleeper state and attempts conditional acquisitions; player metadata and matchups are fetched only when a missing completed week is found. The full player directory is therefore downloaded by the backend about once per football week during normal operation.
 
 ### Deleted-stack recovery

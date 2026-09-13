@@ -15,10 +15,17 @@ logger.setLevel(logging.INFO)
 dynamodb = boto3.resource("dynamodb")
 
 
-def response(status_code, body):
+def request_origin(event):
+    for name, value in (event.get("headers") or {}).items():
+        if name.lower() == "origin":
+            return value
+    return None
+
+
+def response(status_code, body, origin=None):
     return {
         "statusCode": status_code,
-        "headers": get_cors_headers(),
+        "headers": get_cors_headers(origin),
         "body": json.dumps(body, cls=DecimalEncoder),
     }
 
@@ -27,26 +34,29 @@ def lambda_handler(event, context):
     path = event.get("path", "")
     method = event.get("httpMethod", "GET")
     query_params = event.get("queryStringParameters") or {}
+    origin = request_origin(event)
 
     try:
+        if method == "OPTIONS":
+            return response(204, {}, origin)
         if path.endswith("/weekly") and method == "GET":
             table = dynamodb.Table(os.environ["WEEKLY_STANDINGS_TABLE"])
-            return handle_weekly_standings(table, query_params)
+            return handle_weekly_standings(table, query_params, origin)
         if path.endswith("/overall") and method == "GET":
             table = dynamodb.Table(os.environ["OVERALL_STANDINGS_TABLE"])
-            return handle_overall_standings(table, query_params)
+            return handle_overall_standings(table, query_params, origin)
         if path.endswith("/league-context") and method == "GET":
-            return handle_league_context()
-        return response(404, {"error": "Not found"})
+            return handle_league_context(origin)
+        return response(404, {"error": "Not found"}, origin)
     except Exception:
         logger.exception("Read API failed")
-        return response(500, {"error": "Internal server error"})
+        return response(500, {"error": "Internal server error"}, origin)
 
 
-def handle_weekly_standings(table, query_params):
+def handle_weekly_standings(table, query_params, origin=None):
     missing = [name for name in ("week", "season", "league_id") if not query_params.get(name)]
     if missing:
-        return invalid_query_response(missing)
+        return invalid_query_response(missing, origin)
 
     week = query_params["week"]
     season = query_params["season"]
@@ -56,7 +66,7 @@ def handle_weekly_standings(table, query_params):
         if week_number < 1:
             raise ValueError
     except (TypeError, ValueError):
-        return response(400, {"error": "week must be a positive integer"})
+        return response(400, {"error": "week must be a positive integer"}, origin)
 
     result = table.query(
         KeyConditionExpression=boto3.dynamodb.conditions.Key("season_week").eq(
@@ -71,13 +81,13 @@ def handle_weekly_standings(table, query_params):
         "season": season,
         "league_id": league_id,
         "standings": standings,
-    })
+    }, origin)
 
 
-def handle_overall_standings(table, query_params):
+def handle_overall_standings(table, query_params, origin=None):
     missing = [name for name in ("season", "league_id") if not query_params.get(name)]
     if missing:
-        return invalid_query_response(missing)
+        return invalid_query_response(missing, origin)
 
     season = query_params["season"]
     league_id = query_params["league_id"]
@@ -99,21 +109,21 @@ def handle_overall_standings(table, query_params):
         "season": season,
         "league_id": league_id,
         "standings": standings,
-    })
+    }, origin)
 
 
-def invalid_query_response(missing):
+def invalid_query_response(missing, origin=None):
     return response(400, {
         "error": f"Missing required query parameters: {', '.join(missing)}"
-    })
+    }, origin)
 
 
-def handle_league_context():
+def handle_league_context(origin=None):
     try:
-        return response(200, resolve_league_context_from_env())
+        return response(200, resolve_league_context_from_env(), origin)
     except LeagueContextError as error:
         logger.error("Failed to resolve league context: %s", error)
         return response(502, {
             "error": "Failed to resolve active league context",
             "details": str(error),
-        })
+        }, origin)

@@ -245,23 +245,22 @@ export class InfrastructureStack extends cdk.Stack {
     // API Gateway
     const api = new apigateway.RestApi(this, 'FantasyFootballApi', {
       restApiName: 'fantasy-football-vs-everyone',
-      description: 'API for Fantasy Football vs Everyone app',
-      defaultCorsPreflightOptions: {
-        allowOrigins: apigateway.Cors.ALL_ORIGINS,
-        allowMethods: ['GET', 'OPTIONS'],
-        allowHeaders: ['Content-Type']
-      }
+      description: 'API for Fantasy Football vs Everyone app'
     });
 
     // API Routes
+    const apiIntegration = new apigateway.LambdaIntegration(apiFunction);
     const weeklyResource = api.root.addResource('weekly');
-    weeklyResource.addMethod('GET', new apigateway.LambdaIntegration(apiFunction));
+    weeklyResource.addMethod('GET', apiIntegration);
+    weeklyResource.addMethod('OPTIONS', apiIntegration);
 
     const overallResource = api.root.addResource('overall');
-    overallResource.addMethod('GET', new apigateway.LambdaIntegration(apiFunction));
+    overallResource.addMethod('GET', apiIntegration);
+    overallResource.addMethod('OPTIONS', apiIntegration);
 
     const leagueContextResource = api.root.addResource('league-context');
-    leagueContextResource.addMethod('GET', new apigateway.LambdaIntegration(apiFunction));
+    leagueContextResource.addMethod('GET', apiIntegration);
+    leagueContextResource.addMethod('OPTIONS', apiIntegration);
 
     // Stack Outputs
     new cdk.CfnOutput(this, 'ApiUrl', {
