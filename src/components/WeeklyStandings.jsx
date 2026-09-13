@@ -16,9 +16,9 @@ import {
 import { ChevronDown } from "lucide-react"
 import WeeklyStandingsChart from './WeeklyStandingsChart'
 import { useAvailableWeeks, useWeeklyStandings } from '../hooks/useWeeklyStandings'
-import { useActiveGameTime } from '../hooks/useActiveGameTime'
 import { useCurrentWeek } from '../hooks/useCurrentWeek'
 import { useTeamScoreAnimation } from '../hooks/useScoreAnimation'
+import { resolveSelectedWeek } from '../lib/week-selection'
 
 
 // Component for animated team total scores
@@ -42,34 +42,24 @@ export default function WeeklyStandings({ selectedTeam, onTeamSelect }) {
   // Get current week info
   const { currentWeek: calculatedCurrentWeek } = useCurrentWeek()
   
-  // Check for active game times
-  const hasActiveGames = useActiveGameTime(selectedWeek)
-  
-  // Determine polling interval
-  const pollingInterval = hasActiveGames ? 3_000 : null // refresh every 3 seconds if active games
-  
   // Use React Query hooks
   const { data: availableWeeks = [], isLoading: weeksLoading, error: weeksError } = useAvailableWeeks()
   const { 
     data: weeklyStandings = [], 
     isLoading: standingsLoading, 
     error: standingsError,
-    dataUpdatedAt
-  } = useWeeklyStandings(selectedWeek, pollingInterval)
+    dataUpdatedAt,
+    isLivePolling,
+  } = useWeeklyStandings(selectedWeek)
 
   // Set default week when available weeks are loaded
   useEffect(() => {
-    if (availableWeeks.length > 0) {
-      // First, check if calculated current week exists in available weeks
-      if (availableWeeks.includes(calculatedCurrentWeek)) {
-        setSelectedWeek(calculatedCurrentWeek)
-      } else {
-        // Fallback to most recent available week
-        const mostRecentWeek = Math.max(...availableWeeks)
-        setSelectedWeek(mostRecentWeek)
-      }
-    }
-  }, [availableWeeks, selectedWeek, calculatedCurrentWeek])
+    setSelectedWeek((currentSelection) => resolveSelectedWeek({
+      selectedWeek: currentSelection,
+      currentWeek: calculatedCurrentWeek,
+      availableWeeks,
+    }))
+  }, [availableWeeks, calculatedCurrentWeek])
 
   
   const loading = weeksLoading || standingsLoading
@@ -98,7 +88,7 @@ export default function WeeklyStandings({ selectedTeam, onTeamSelect }) {
               </SelectTrigger>
               <SelectContent>
                 {availableWeeks.map((week) => (
-                  <SelectItem key={week} value={week}>
+                  <SelectItem key={week} value={String(week)}>
                     Week {week}
                   </SelectItem>
                 ))}
@@ -107,18 +97,14 @@ export default function WeeklyStandings({ selectedTeam, onTeamSelect }) {
           </div>
 
           {/* Auto-Refresh Toggle */}
-          {(hasActiveGames || pollingInterval) && (
+          {isLivePolling && (
             <div className="flex flex-col items-center mb-3 sm:mb-6">
               <div className="flex items-center gap-2">
-                {pollingInterval && (
-                  <>
-                    <div className="relative flex h-3 w-3">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-lime-500"></span>
-                    </div>
-                    <span className="text-sm text-muted-foreground">Auto-refreshing...</span>
-                  </>
-                )}
+                <div className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-lime-500"></span>
+                </div>
+                <span className="text-sm text-muted-foreground">Auto-refreshing...</span>
               </div>
               {dataUpdatedAt ? (
                 <span className="text-xs text-muted-foreground/60 mt-1">

@@ -1,0 +1,109 @@
+{
+  "cases": [
+    {
+      "name": "normal rankings with decimal scores",
+      "team_names": {
+        "1": "Alpha",
+        "2": "Bravo",
+        "3": "Charlie",
+        "4": "Delta"
+      },
+      "matchups": [
+        { "roster_id": 1, "points": 120.5 },
+        { "roster_id": 2, "points": 99.25 },
+        { "roster_id": 3, "points": 75.75 },
+        { "roster_id": 4, "points": 10.1 }
+      ],
+      "expected": [
+        { "roster_id": "1", "team_name": "Alpha", "rank": 1, "points": 120.5, "wins": 3, "losses": 0 },
+        { "roster_id": "2", "team_name": "Bravo", "rank": 2, "points": 99.25, "wins": 2, "losses": 1 },
+        { "roster_id": "3", "team_name": "Charlie", "rank": 3, "points": 75.75, "wins": 1, "losses": 2 },
+        { "roster_id": "4", "team_name": "Delta", "rank": 4, "points": 10.1, "wins": 0, "losses": 3 }
+      ]
+    },
+    {
+      "name": "two-way tie splits both results",
+      "team_names": {
+        "11": "Eleven",
+        "22": "Twenty Two",
+        "33": "Thirty Three",
+        "44": "Forty Four"
+      },
+      "matchups": [
+        { "roster_id": 11, "points": 110 },
+        { "roster_id": 22, "points": 95.5 },
+        { "roster_id": 33, "points": 95.5 },
+        { "roster_id": 44, "points": 0 }
+      ],
+      "expected": [
+        { "roster_id": "11", "team_name": "Eleven", "rank": 1, "points": 110, "wins": 3, "losses": 0 },
+        { "roster_id": "22", "team_name": "Twenty Two", "rank": 2.5, "points": 95.5, "wins": 1.5, "losses": 1.5 },
+        { "roster_id": "33", "team_name": "Thirty Three", "rank": 2.5, "points": 95.5, "wins": 1.5, "losses": 1.5 },
+        { "roster_id": "44", "team_name": "Forty Four", "rank": 4, "points": 0, "wins": 0, "losses": 3 }
+      ]
+    },
+    {
+      "name": "multi-way tie averages every occupied position",
+      "team_names": {
+        "101": "One Oh One",
+        "202": "Two Oh Two",
+        "303": "Three Oh Three",
+        "404": "Four Oh Four",
+        "505": "Five Oh Five"
+      },
+      "matchups": [
+        { "roster_id": 101, "points": 88.8 },
+        { "roster_id": 202, "points": 88.8 },
+        { "roster_id": 303, "points": 88.8 },
+        { "roster_id": 404, "points": 44.4 },
+        { "roster_id": 505, "points": 12.2 }
+      ],
+      "expected": [
+        { "roster_id": "101", "team_name": "One Oh One", "rank": 2, "points": 88.8, "wins": 3, "losses": 1 },
+        { "roster_id": "202", "team_name": "Two Oh Two", "rank": 2, "points": 88.8, "wins": 3, "losses": 1 },
+        { "roster_id": "303", "team_name": "Three Oh Three", "rank": 2, "points": 88.8, "wins": 3, "losses": 1 },
+        { "roster_id": "404", "team_name": "Four Oh Four", "rank": 4, "points": 44.4, "wins": 1, "losses": 3 },
+        { "roster_id": "505", "team_name": "Five Oh Five", "rank": 5, "points": 12.2, "wins": 0, "losses": 4 }
+      ]
+    },
+    {
+      "name": "zero and corrected negative scores",
+      "team_names": {
+        "8": "Eight",
+        "9": "Nine",
+        "10": "Ten",
+        "12": "Twelve"
+      },
+      "matchups": [
+        { "roster_id": 8, "points": 0 },
+        { "roster_id": 9, "points": -0.25 },
+        { "roster_id": 10, "points": 0.01 },
+        { "roster_id": 12, "points": 0 }
+      ],
+      "expected": [
+        { "roster_id": "10", "team_name": "Ten", "rank": 1, "points": 0.01, "wins": 3, "losses": 0 },
+        { "roster_id": "8", "team_name": "Eight", "rank": 2.5, "points": 0, "wins": 1.5, "losses": 1.5 },
+        { "roster_id": "12", "team_name": "Twelve", "rank": 2.5, "points": 0, "wins": 1.5, "losses": 1.5 },
+        { "roster_id": "9", "team_name": "Nine", "rank": 4, "points": -0.25, "wins": 0, "losses": 3 }
+      ]
+    },
+    {
+      "name": "stable roster IDs and tied input order",
+      "team_names": {
+        "7": "Seven",
+        "42": "Forty Two",
+        "103": "One Hundred Three"
+      },
+      "matchups": [
+        { "roster_id": 103, "points": 50 },
+        { "roster_id": 42, "points": 50 },
+        { "roster_id": 7, "points": 50 }
+      ],
+      "expected": [
+        { "roster_id": "103", "team_name": "One Hundred Three", "rank": 2, "points": 50, "wins": 1, "losses": 1 },
+        { "roster_id": "42", "team_name": "Forty Two", "rank": 2, "points": 50, "wins": 1, "losses": 1 },
+        { "roster_id": "7", "team_name": "Seven", "rank": 2, "points": 50, "wins": 1, "losses": 1 }
+      ]
+    }
+  ]
+}

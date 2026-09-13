@@ -24,7 +24,7 @@ npx cdk diff
 
 ## Active architecture
 
-The frontend is a React/Vite PWA hosted on Vercel. Weekly standings are assembled in the browser from Sleeper rosters, users, players, projections, and matchups. Overall standings and both charts read persisted data through API Gateway.
+The frontend is a React/Vite PWA hosted on Vercel. Weekly standings are assembled in the browser from Sleeper rosters, users, players, projections, and matchups. Only the visible, online current-week matchup query repeats, at a ten-second interval; metadata uses longer caches. Overall standings and both charts read persisted data through API Gateway.
 
 The CDK stack in `infra/lib/infrastructure-stack.ts` defines:
 
@@ -40,6 +40,7 @@ There is no ECS, Fargate, ECR, VPC, polling-state table, admin key, or public mu
 ## Data flow
 
 - The weekly frontend reads Sleeper directly and calculates the displayed live order and record.
+- JavaScript and Python weekly scoring share JSON fixtures and split tied positions into identical fractional records.
 - The hourly finalizer resolves the active league and processes every completed week without a completion marker.
 - Finalization stores a raw matchup snapshot, recalculates canonical weekly and overall standings, runs Monte Carlo projections, and only then marks the week complete.
 - A conditional season-wide lease serializes finalizer runs, while per-week leases track completion and retries. Failed work remains retryable, and an IAM-authenticated direct Lambda invocation can force a completed week to reprocess.
@@ -48,10 +49,10 @@ There is no ECS, Fargate, ECR, VPC, polling-state table, admin key, or public mu
 ## Important current constraints
 
 - Active season, week, and league ID come from the public league-context endpoint and shared Sleeper resolver.
-- Browser weekly scoring and the shared Python calculator still differ in tie handling.
 - The frontend still fetches Sleeper's full player directory; replacing that with the compact backend map is a future milestone.
 - Known Monte Carlo math issues remain outside the automated-finalization change.
-- The deleted AWS stack must be recovered by importing the three retained tables; see `infra/README.md` before deployment.
+- The replacement AWS stack is deployed, and the unmanaged polling-state table and polling-service repository have been deleted.
+- The first automatic Week 1 finalization remains pending until Sleeper advances to Week 2.
 - `VITE_API_URL` is required. Use the deployed stack's `ApiUrl` output locally and in Vercel; there is no source-code fallback.
 
 Treat generated CDK output, TypeScript emit, Python bytecode, setuptools build output, and package metadata as disposable. They are ignored and should not be committed.

@@ -23,31 +23,21 @@ npx cdk synth
 npx cdk diff
 ```
 
-## Recover the manually deleted stack
+## Deployment status
 
-The previous stack was manually deleted while its three retained DynamoDB tables remained. An unsuccessful redeployment may leave an empty `InfrastructureStack` shell in `REVIEW_IN_PROGRESS` or `ROLLBACK_COMPLETE`. No recovery operation described here has been performed by the code change.
+The replacement stack is deployed and owns all three retained tables. Vercel uses the stack's `ApiUrl` output, and the unmanaged `ff-polling-state` table and `ff-polling-service` ECR repository have been deleted. Future infrastructure updates use the normal deployment command:
 
-1. Confirm the three existing tables have the same partition/sort keys modeled in `lib/infrastructure-stack.ts`.
-2. Delete the empty `InfrastructureStack` shell and wait for deletion to complete.
-3. Delete orphaned `/aws/lambda/ff-api-handler`, `/aws/lambda/ff-monte-carlo`, and `/aws/lambda/ff-week-finalizer` log groups left by earlier failed or manually deleted stacks. Do not delete the three retained DynamoDB tables.
-4. From `infra/`, deploy with existing-resource import:
+```bash
+npx cdk deploy InfrastructureStack
+```
 
-   ```bash
-   npx cdk deploy InfrastructureStack --import-existing-resources
-   ```
-
-   This CDK option imports unmanaged resources whose fixed physical names match the synthesized template while creating the new stateless resources in the same deployment. Review the change set and verify that all three existing tables are imported rather than created or replaced.
-5. Copy the deployment's `ApiUrl` stack output into the Vercel `VITE_API_URL` environment variable, including the stage path, and redeploy the frontend. The frontend deliberately has no fallback URL.
-6. Run CloudFormation drift detection and verify the EventBridge rule, finalizer, read API, and table data.
-7. Once the replacement is verified, separately delete the unmanaged `ff-polling-state` table and `ff-polling-service` ECR repository if they still exist. They are absent from this template and will not be changed by CDK.
-
-Do not run a plain `cdk deploy` first: fixed table names will collide with the retained tables.
+The existing-resource import option was required only once to recover from the manually deleted stack.
 
 ## Automation and recovery
 
 EventBridge invokes `ff-week-finalizer` once per hour. A conditional season-wide lease in `ff-league-data` prevents a scheduled retry or direct recovery invocation from overlapping another finalization and publishing stale aggregate standings. The lease expires after 20 minutes, longer than the Lambda's 15-minute timeout, so a crashed run recovers without manual cleanup. Most runs only resolve Sleeper state and exit. When Sleeper advances to a new week, the finalizer refreshes league metadata and the roster-scoped player cache, validates that each matchup snapshot contains every known league roster exactly once, processes every missing completed regular-season week, runs playoff projections, and then records completion.
 
-The three Lambda log groups retain seven days of logs and are deleted with a failed or intentionally removed stack. During migration from the original manually deleted stack, remove any orphaned `/aws/lambda/ff-api-handler`, `/aws/lambda/ff-monte-carlo`, and `/aws/lambda/ff-week-finalizer` groups before retrying deployment.
+The three Lambda log groups retain seven days of logs and are deleted with a failed or intentionally removed stack.
 
 For a Sleeper stat correction, an AWS operator with `lambda:InvokeFunction` can invoke the finalizer directly with an IAM-authenticated payload:
 

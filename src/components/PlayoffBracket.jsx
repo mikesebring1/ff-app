@@ -2,7 +2,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Trophy, Medal } from "lucide-react"
 import { useWeeklyStandings } from '../hooks/useWeeklyStandings'
 import { useOverallStandings } from '../hooks/useOverallStandings'
-import { useActiveGameTime } from '../hooks/useActiveGameTime'
 import { useTeamScoreAnimation } from '../hooks/useScoreAnimation'
 import { useSleeperPlayers } from '../hooks/useSleeper'
 
@@ -21,9 +20,6 @@ function AnimatedPlayoffTeamScore({ points }) {
 export default function PlayoffBracket({ week, selectedTeam }) {
   const isSemiFinals = week === "16"
   const isFinals = week === "17"
-  
-  // Check if games are still active
-  const hasActiveGames = useActiveGameTime(week)
   
   // Check if Week 17 is complete (Tuesday or later, or no active games)
   const isWeek17Complete = () => {
@@ -51,7 +47,11 @@ export default function PlayoffBracket({ week, selectedTeam }) {
   const { data: overallStandings = [] } = useOverallStandings()
   
   // Get weekly results for the playoff week
-  const { data: weeklyResults = [], isLoading, error } = useWeeklyStandings(week)
+  const {
+    data: weeklyResults = [],
+    isLoading,
+    error,
+  } = useWeeklyStandings(week)
   
   // Get week 16 results for finals bracket (always fetch, even if not finals week)
   const { data: week16Results = [] } = useWeeklyStandings("16")
@@ -258,7 +258,6 @@ export default function PlayoffBracket({ week, selectedTeam }) {
           highlight1={getHighlightStyle(finalist1)}
           highlight2={getHighlightStyle(finalist2)}
           week17Complete={week17Complete}
-          hasActiveGames={hasActiveGames}
           playersData={playersData}
         />
         
@@ -272,7 +271,6 @@ export default function PlayoffBracket({ week, selectedTeam }) {
           highlight1={getHighlightStyle(loser1)}
           highlight2={getHighlightStyle(loser2)}
           week17Complete={week17Complete}
-          hasActiveGames={hasActiveGames}
           playersData={playersData}
         />
       </div>
@@ -293,7 +291,7 @@ function shortenPlayerName(fullName) {
 }
 
 // Finals match component with rosters
-function FinalsMatch({ match, title, icon, highlight1, highlight2, week17Complete, hasActiveGames, playersData }) {
+function FinalsMatch({ match, title, icon, highlight1, highlight2, week17Complete, playersData }) {
   if (!match || !match.team1 || !match.team2) return null
   
   const isChampionshipMatch = title.includes("Championship")
@@ -307,7 +305,7 @@ function FinalsMatch({ match, title, icon, highlight1, highlight2, week17Complet
           {title}
           {icon && <span className={isChampionshipMatch ? "text-yellow-600 dark:text-yellow-500" : ""}>{icon}</span>}
         </div>
-        {isChampionshipMatch && !week17Complete && !hasActiveGames && (
+        {isChampionshipMatch && !week17Complete && (
           <p className="text-xs text-muted-foreground mt-1">Champion will be crowned after Monday Night Football</p>
         )}
       </div>

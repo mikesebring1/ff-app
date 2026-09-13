@@ -29,9 +29,9 @@ The weekly screen polls Sleeper in the browser and calculates live standings in 
 
 The API is read-only: `/league-context`, `/weekly`, and `/overall`. The admin prompt, key, mutation routes, polling state, ECS/Fargate task, ECR repository definition, and polling VPC have been removed from the application and CDK template.
 
-The frontend still applies the live polling interval to matchups, rosters, and projections. Only matchup scores require frequent refreshes. The full player directory is still fetched by each browser even though the UI only needs metadata for players relevant to this league. Those are the next cleanup milestones.
+The frontend has one coordinated polling stream per current league/week matchup query. It runs every ten seconds only while the page is visible and online; returning to the foreground or reconnecting triggers an immediate refresh. Rosters and users are cached for four hours, projections for fifteen minutes, and the full player directory for one day. The full directory is still fetched by each browser even though the UI only needs metadata for players relevant to this league.
 
-The refactored stack has not been deployed. Three tables retained from the manually deleted stack must be imported during the replacement deployment.
+The refactored stack is deployed. Its three retained tables were imported successfully, the frontend uses the new API output, and the unmanaged polling-state table and polling-service ECR repository have been deleted.
 
 ## Target data flows
 
@@ -39,7 +39,7 @@ The refactored stack has not been deployed. Three tables retained from the manua
 
 ```mermaid
 flowchart LR
-    S[Sleeper matchup API] -->|5-10 seconds| P[Visible React PWA]
+    S[Sleeper matchup API] -->|10 seconds| P[Visible React PWA]
     C[League context API] -->|once on app load| P
     P --> D[Compare previous and current scores]
     D --> F[Flash changed scores]
@@ -58,8 +58,8 @@ Only the matchup endpoint receives the live interval. Suggested cache behavior f
 
 | Data | Refresh policy |
 | --- | --- |
-| Current matchup | Every 5-10 seconds while eligible |
-| NFL state | Every 5 minutes while the app is open |
+| Current matchup | Every 10 seconds while eligible |
+| NFL state | Cached for 5 minutes; refreshed on load or focus when stale |
 | Rosters and users | On load, then every few hours |
 | Projections | Every 10-15 minutes |
 | Compact league player map | On load, cached for one day |
@@ -146,17 +146,7 @@ Hourly scheduling is intentionally simple and cheap. A no-op run only resolves S
 
 ### Deleted-stack recovery
 
-The previous CloudFormation stack was manually deleted, leaving `ff-weekly-standings`, `ff-overall-standings`, and `ff-league-data` unmanaged because of their retain policies. An empty `InfrastructureStack` shell may remain in `REVIEW_IN_PROGRESS` or `ROLLBACK_COMPLETE`. None of these AWS recovery actions have been performed by this code change.
-
-1. Verify that the retained tables' keys match the CDK definitions.
-2. Delete the empty stack shell and wait for deletion.
-3. Delete orphaned Lambda log groups for `ff-api-handler`, `ff-monte-carlo`, and `ff-week-finalizer`; preserve the three retained DynamoDB tables.
-4. Run `npx cdk deploy InfrastructureStack --import-existing-resources` from `infra/` and confirm the change set imports all three tables.
-5. Copy the new `ApiUrl` stack output to Vercel's required `VITE_API_URL` variable and redeploy the frontend.
-6. Run drift detection and verify the schedule and read API.
-7. Separately delete the old unmanaged `ff-polling-state` table and `ff-polling-service` repository after the replacement is verified.
-
-A plain deploy must not precede the import deployment because the retained fixed table names would collide.
+Recovery is complete. The replacement stack imported `ff-weekly-standings`, `ff-overall-standings`, and `ff-league-data`; Vercel uses its `ApiUrl` output; and the obsolete `ff-polling-state` table and `ff-polling-service` repository were deleted. The first live automatic finalization check remains pending until Sleeper advances from Week 1 to Week 2.
 
 ## Delivery plan
 
@@ -183,7 +173,7 @@ Acceptance criteria:
 
 ### Milestone 1: automated finalization and infrastructure removal
 
-Status: implemented locally, pending review and deployment.
+Status: deployed. The unmanaged legacy table and ECR repository are also removed.
 
 1. Convert historical backfill into an idempotent process-missing-weeks operation.
 2. Store conditional leases and completion markers in `ff-league-data`.
@@ -194,6 +184,8 @@ Status: implemented locally, pending review and deployment.
 7. Preserve the three retained table names and removal policies for import.
 
 ### Milestone 2: efficient foreground polling
+
+Status: implemented locally, pending review and frontend deployment.
 
 1. Extract the frontend standings calculation into a pure module.
 2. Add shared scoring fixtures and make the JavaScript and Python calculators agree.
@@ -226,6 +218,8 @@ Acceptance criteria:
 5. Remove the full player-directory request from the browser.
 
 ### Milestone 5: production validation
+
+Status: infrastructure import, API configuration, and legacy-resource removal are complete. The first automatic Week 1 finalization remains pending until Sleeper advances to Week 2.
 
 1. Import the retained tables and deploy the replacement stack.
 2. Configure Vercel with the new API output and redeploy the PWA.
