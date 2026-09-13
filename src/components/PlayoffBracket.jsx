@@ -3,6 +3,7 @@ import { Trophy, Medal } from "lucide-react"
 import { useWeeklyStandings } from '../hooks/useWeeklyStandings'
 import { useOverallStandings } from '../hooks/useOverallStandings'
 import { usePlayerMap } from '../hooks/usePlayerMap'
+import { buildPlayoffMatch } from '../lib/playoff-match'
 
 
 function PlayoffTeamScore({ points }) {
@@ -13,7 +14,7 @@ function PlayoffTeamScore({ points }) {
   )
 }
 
-export default function PlayoffBracket({ week, selectedTeam }) {
+export default function PlayoffBracket({ week, selectedRosterId }) {
   const isSemiFinals = week === "16"
   const isFinals = week === "17"
   
@@ -65,32 +66,13 @@ export default function PlayoffBracket({ week, selectedTeam }) {
   const getTeamBySeed = (seed) => playoffTeams.find(t => t.seed === seed)
   
   // Helper to get match result
-  const getMatchResult = (team1Name, team2Name) => {
-    const team1Result = weeklyResults.find(r => r.teamName === team1Name)
-    const team2Result = weeklyResults.find(r => r.teamName === team2Name)
-    
-    if (!team1Result || !team2Result) return null
-    
-    return {
-      team1: {
-        name: team1Name,
-        points: parseFloat(team1Result.points),
-        projectedPoints: parseFloat(team1Result.projectedTotal),
-        starters: team1Result.starters || []
-      },
-      team2: {
-        name: team2Name,
-        points: parseFloat(team2Result.points),
-        projectedPoints: parseFloat(team2Result.projectedTotal),
-        starters: team2Result.starters || []
-      },
-      winner: parseFloat(team1Result.points) > parseFloat(team2Result.points) ? team1Name : team2Name
-    }
-  }
+  const getMatchResult = (team1, team2) => (
+    buildPlayoffMatch(weeklyResults, team1, team2)
+  )
   
   // Get highlight style
-  const getHighlightStyle = (teamName) => {
-    if (selectedTeam === 'All Teams' || selectedTeam !== teamName) {
+  const getHighlightStyle = (rosterId) => {
+    if (selectedRosterId == null || selectedRosterId !== String(rosterId)) {
       return ""
     }
     return "ring-2 ring-primary bg-accent/50"
@@ -120,8 +102,8 @@ export default function PlayoffBracket({ week, selectedTeam }) {
     const team2 = getTeamBySeed(2)
     const team3 = getTeamBySeed(3)
     
-    const match1 = team1 && team4 ? getMatchResult(team1.teamName, team4.teamName) : null
-    const match2 = team2 && team3 ? getMatchResult(team2.teamName, team3.teamName) : null
+    const match1 = team1 && team4 ? getMatchResult(team1, team4) : null
+    const match2 = team2 && team3 ? getMatchResult(team2, team3) : null
     
     return (
       <div className="space-y-6">
@@ -143,8 +125,8 @@ export default function PlayoffBracket({ week, selectedTeam }) {
                   seed={1} 
                   score={match1?.team1.points}
                   projectedScore={match1?.team1.projectedPoints}
-                  isWinner={match1?.winner === team1?.teamName}
-                  highlight={getHighlightStyle(team1?.teamName)}
+                  isWinner={match1?.winnerId === String(team1?.id)}
+                  highlight={getHighlightStyle(team1?.id)}
                 />
                 <div className="text-xl font-bold text-muted-foreground">VS</div>
                 <TeamCard 
@@ -152,8 +134,8 @@ export default function PlayoffBracket({ week, selectedTeam }) {
                   seed={4} 
                   score={match1?.team2.points}
                   projectedScore={match1?.team2.projectedPoints}
-                  isWinner={match1?.winner === team4?.teamName}
-                  highlight={getHighlightStyle(team4?.teamName)}
+                  isWinner={match1?.winnerId === String(team4?.id)}
+                  highlight={getHighlightStyle(team4?.id)}
                 />
               </div>
             </CardContent>
@@ -171,8 +153,8 @@ export default function PlayoffBracket({ week, selectedTeam }) {
                   seed={2} 
                   score={match2?.team1.points}
                   projectedScore={match2?.team1.projectedPoints}
-                  isWinner={match2?.winner === team2?.teamName}
-                  highlight={getHighlightStyle(team2?.teamName)}
+                  isWinner={match2?.winnerId === String(team2?.id)}
+                  highlight={getHighlightStyle(team2?.id)}
                 />
                 <div className="text-xl font-bold text-muted-foreground">VS</div>
                 <TeamCard 
@@ -180,8 +162,8 @@ export default function PlayoffBracket({ week, selectedTeam }) {
                   seed={3} 
                   score={match2?.team2.points}
                   projectedScore={match2?.team2.projectedPoints}
-                  isWinner={match2?.winner === team3?.teamName}
-                  highlight={getHighlightStyle(team3?.teamName)}
+                  isWinner={match2?.winnerId === String(team3?.id)}
+                  highlight={getHighlightStyle(team3?.id)}
                 />
               </div>
             </CardContent>
@@ -207,42 +189,33 @@ export default function PlayoffBracket({ week, selectedTeam }) {
     const team2 = getTeamBySeed(2)
     const team3 = getTeamBySeed(3)
     
-    // Helper to get match result from week 16
-    const getWeek16MatchResult = (team1Name, team2Name) => {
-      const team1Result = week16Results.find(r => r.teamName === team1Name)
-      const team2Result = week16Results.find(r => r.teamName === team2Name)
-      
-      if (!team1Result || !team2Result) return null
-      
-      return {
-        team1: {
-          name: team1Name,
-          points: parseFloat(team1Result.points),
-          projectedPoints: parseFloat(team1Result.projectedTotal),
-          starters: team1Result.starters || []
-        },
-        team2: {
-          name: team2Name,
-          points: parseFloat(team2Result.points),
-          projectedPoints: parseFloat(team2Result.projectedTotal),
-          starters: team2Result.starters || []
-        },
-        winner: parseFloat(team1Result.points) > parseFloat(team2Result.points) ? team1Name : team2Name
-      }
-    }
-    
-    const match1Result = team1 && team4 ? getWeek16MatchResult(team1.teamName, team4.teamName) : null
-    const match2Result = team2 && team3 ? getWeek16MatchResult(team2.teamName, team3.teamName) : null
-    
-    const finalist1 = match1Result?.winner
-    const finalist2 = match2Result?.winner
-    
-    const loser1 = match1Result ? (match1Result.winner === team1?.teamName ? team4?.teamName : team1?.teamName) : null
-    const loser2 = match2Result ? (match2Result.winner === team2?.teamName ? team3?.teamName : team2?.teamName) : null
+    const match1Result = team1 && team4
+      ? buildPlayoffMatch(week16Results, team1, team4)
+      : null
+    const match2Result = team2 && team3
+      ? buildPlayoffMatch(week16Results, team2, team3)
+      : null
+
+    const finalist1 = match1Result
+      ? (match1Result.winnerId === String(team1?.id) ? team1 : team4)
+      : null
+    const finalist2 = match2Result
+      ? (match2Result.winnerId === String(team2?.id) ? team2 : team3)
+      : null
+    const loser1 = match1Result
+      ? (match1Result.winnerId === String(team1?.id) ? team4 : team1)
+      : null
+    const loser2 = match2Result
+      ? (match2Result.winnerId === String(team2?.id) ? team3 : team2)
+      : null
     
     // Get finals results
-    const finalsMatch = finalist1 && finalist2 ? getMatchResult(finalist1, finalist2) : null
-    const thirdPlaceMatch = loser1 && loser2 ? getMatchResult(loser1, loser2) : null
+    const finalsMatch = match1Result && match2Result
+      ? getMatchResult(finalist1, finalist2)
+      : null
+    const thirdPlaceMatch = match1Result && match2Result
+      ? getMatchResult(loser1, loser2)
+      : null
     
     return (
       <div className="space-y-6">
@@ -251,8 +224,8 @@ export default function PlayoffBracket({ week, selectedTeam }) {
           match={finalsMatch}
           title="Championship Game"
           icon={<Trophy className="h-5 w-5" />}
-          highlight1={getHighlightStyle(finalist1)}
-          highlight2={getHighlightStyle(finalist2)}
+          highlight1={getHighlightStyle(finalist1?.id)}
+          highlight2={getHighlightStyle(finalist2?.id)}
           week17Complete={week17Complete}
           playersData={playersData}
         />
@@ -264,8 +237,8 @@ export default function PlayoffBracket({ week, selectedTeam }) {
           match={thirdPlaceMatch}
           title="3rd Place Game"
           icon={<Medal className="h-4 w-4 text-orange-600 dark:text-orange-500" />}
-          highlight1={getHighlightStyle(loser1)}
-          highlight2={getHighlightStyle(loser2)}
+          highlight1={getHighlightStyle(loser1?.id)}
+          highlight2={getHighlightStyle(loser2?.id)}
           week17Complete={week17Complete}
           playersData={playersData}
         />
@@ -308,8 +281,8 @@ function FinalsMatch({ match, title, icon, highlight1, highlight2, week17Complet
       
       {/* Team Headers */}
       <div className="grid grid-cols-12 gap-2 mb-4 p-3 border rounded-lg bg-muted/10">
-        <div className={`col-span-5 text-center p-2 rounded-lg ${highlight1} ${week17Complete && match.winner === match.team1.name ? 'border border-green-500 bg-green-50 dark:bg-green-900/20' : ''}`}>
-          <div className={`font-semibold text-sm ${showChampion && match.winner === match.team1.name ? 'text-yellow-600 dark:text-yellow-500' : ''}`}>
+        <div className={`col-span-5 text-center p-2 rounded-lg ${highlight1} ${week17Complete && match.winnerId === match.team1.id ? 'border border-green-500 bg-green-50 dark:bg-green-900/20' : ''}`}>
+          <div className={`font-semibold text-sm ${showChampion && match.winnerId === match.team1.id ? 'text-yellow-600 dark:text-yellow-500' : ''}`}>
             {match.team1.name}
           </div>
           <PlayoffTeamScore
@@ -318,7 +291,7 @@ function FinalsMatch({ match, title, icon, highlight1, highlight2, week17Complet
           <div className="text-xs text-gray-400">
             {match.team1.projectedPoints.toFixed(1)}
           </div>
-          {showChampion && match.winner === match.team1.name && (
+          {showChampion && match.winnerId === match.team1.id && (
             <div className="flex items-center justify-center gap-1 text-xs text-yellow-600 dark:text-yellow-500 font-semibold mt-1">
               <Trophy className="h-3 w-3" />
               CHAMPION
@@ -330,8 +303,8 @@ function FinalsMatch({ match, title, icon, highlight1, highlight2, week17Complet
           VS
         </div>
         
-        <div className={`col-span-5 text-center p-2 rounded-lg ${highlight2} ${week17Complete && match.winner === match.team2.name ? 'border border-green-500 bg-green-50 dark:bg-green-900/20' : ''}`}>
-          <div className={`font-semibold text-sm ${showChampion && match.winner === match.team2.name ? 'text-yellow-600 dark:text-yellow-500' : ''}`}>
+        <div className={`col-span-5 text-center p-2 rounded-lg ${highlight2} ${week17Complete && match.winnerId === match.team2.id ? 'border border-green-500 bg-green-50 dark:bg-green-900/20' : ''}`}>
+          <div className={`font-semibold text-sm ${showChampion && match.winnerId === match.team2.id ? 'text-yellow-600 dark:text-yellow-500' : ''}`}>
             {match.team2.name}
           </div>
           <PlayoffTeamScore
@@ -340,7 +313,7 @@ function FinalsMatch({ match, title, icon, highlight1, highlight2, week17Complet
           <div className="text-xs text-gray-400">
             {match.team2.projectedPoints.toFixed(1)}
           </div>
-          {showChampion && match.winner === match.team2.name && (
+          {showChampion && match.winnerId === match.team2.id && (
             <div className="flex items-center justify-center gap-1 text-xs text-yellow-600 dark:text-yellow-500 font-semibold mt-1">
               <Trophy className="h-3 w-3" />
               CHAMPION

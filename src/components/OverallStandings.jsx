@@ -2,12 +2,12 @@ import { Card, CardContent } from "@/components/ui/card"
 import OverallStandingsChart from './OverallStandingsChart'
 import { useOverallStandings } from '../hooks/useOverallStandings'
 
-export default function OverallStandings({ selectedTeam, onTeamSelect }) {
+export default function OverallStandings({ selectedRosterId, onRosterSelect }) {
   const { data: overallStandings = [], isLoading: loading, error } = useOverallStandings()
 
   // Highlight selected team with background
-  const getHighlightStyle = (teamName) => {
-    if (selectedTeam === 'All Teams' || selectedTeam !== teamName) {
+  const getHighlightStyle = (rosterId) => {
+    if (selectedRosterId == null || selectedRosterId !== String(rosterId)) {
       return "hover:bg-accent/50"
     }
     
@@ -57,7 +57,7 @@ export default function OverallStandings({ selectedTeam, onTeamSelect }) {
               {overallStandings.map((team) => (
                 <div 
                   key={team.id}
-                  className={`flex items-center justify-between py-4 px-4 border-b last:border-b-0 ${getHighlightStyle(team.teamName)}`}
+                  className={`flex items-center justify-between py-4 px-4 border-b last:border-b-0 ${getHighlightStyle(team.id)}`}
                 >
                   <div className="flex items-center gap-2">
                     <div>
@@ -80,7 +80,10 @@ export default function OverallStandings({ selectedTeam, onTeamSelect }) {
         </CardContent>
       </Card>
       
-      <OverallStandingsChart selectedTeam={selectedTeam} onTeamSelect={onTeamSelect} />
+      <OverallStandingsChart
+        selectedRosterId={selectedRosterId}
+        onRosterSelect={onRosterSelect}
+      />
     </div>
   )
 }

@@ -22,27 +22,49 @@ import PlayoffBracket from './components/PlayoffBracket'
 import { useTeams } from './hooks/useTeams'
 import { useNetworkStatus } from './hooks/useNetworkStatus'
 import { useCurrentWeek } from './hooks/useCurrentWeek'
-import { normalizeThemePreference, resolveDarkMode } from './lib/theme-preference'
+import {
+  getThemeStorage,
+  normalizeThemePreference,
+  persistThemePreference,
+  readThemePreference,
+  resolveDarkMode,
+} from './lib/theme-preference'
+import {
+  rosterIdFromTeamSelection,
+  teamSelectionValue,
+} from './lib/team-names'
 
 const SYSTEM_THEME_QUERY = '(prefers-color-scheme: dark)'
 
 function getSystemDarkMode() {
   return typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
     && window.matchMedia(SYSTEM_THEME_QUERY).matches
 }
 
 function subscribeToSystemDarkMode(onChange) {
-  if (typeof window === 'undefined') return () => {}
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return () => {}
+  }
 
   const mediaQuery = window.matchMedia(SYSTEM_THEME_QUERY)
-  mediaQuery.addEventListener('change', onChange)
-  return () => mediaQuery.removeEventListener('change', onChange)
+  if (typeof mediaQuery.addEventListener === 'function') {
+    mediaQuery.addEventListener('change', onChange)
+    return () => mediaQuery.removeEventListener('change', onChange)
+  }
+
+  if (typeof mediaQuery.addListener === 'function') {
+    mediaQuery.addListener(onChange)
+    return () => mediaQuery.removeListener(onChange)
+  }
+
+  return () => {}
 }
 
 function App() {
   const [themePreference, setThemePreference] = useState(() => {
     if (typeof window === 'undefined') return 'system'
-    return normalizeThemePreference(localStorage.getItem('theme'))
+    return readThemePreference(getThemeStorage(window))
   })
   const systemPrefersDark = useSyncExternalStore(
     subscribeToSystemDarkMode,
@@ -51,7 +73,7 @@ function App() {
   )
   const isDarkMode = resolveDarkMode(themePreference, systemPrefersDark)
 
-  const [selectedTeam, setSelectedTeam] = useState('All Teams')
+  const [selectedRosterId, setSelectedRosterId] = useState(null)
 
   // Fetch team names dynamically from API
   const { teams, loading: teamsLoading, error: teamsError } = useTeams()
@@ -70,21 +92,20 @@ function App() {
   const [updateAvailable, setUpdateAvailable] = useState(false)
   const [swRegistration, setSwRegistration] = useState(null)
 
-  // Ensure selectedTeam is valid when teams are loaded
+  // Reset a selection that no longer belongs to the active league.
   useEffect(() => {
-    if (!teamsLoading && !teamsError && teams.length > 0) {
-      // If current selectedTeam is not in the loaded teams, reset to 'All Teams'
-      if (!teams.includes(selectedTeam.trim())) {
-        setSelectedTeam('All Teams')
+    if (!teamsLoading && !teamsError && selectedRosterId != null) {
+      if (!teams.some((team) => team.rosterId === selectedRosterId)) {
+        setSelectedRosterId(null)
       }
     }
-  }, [teams, teamsLoading, teamsError, selectedTeam])
+  }, [selectedRosterId, teams, teamsLoading, teamsError])
 
   // Apply the resolved theme while retaining the user's three-state preference.
   useEffect(() => {
     const root = window.document.documentElement
     root.classList.toggle('dark', isDarkMode)
-    localStorage.setItem('theme', themePreference)
+    persistThemePreference(getThemeStorage(window), themePreference)
   }, [isDarkMode, themePreference])
 
   // PWA update handling
@@ -122,8 +143,8 @@ function App() {
       <div className="absolute top-8 right-8">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="icon">
-              <Menu className="h-4 w-4" />
+            <Button variant="outline" size="icon" aria-label="Open settings">
+              <Menu className="h-4 w-4" aria-hidden="true" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -132,11 +153,11 @@ function App() {
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>
                 {themePreference === 'system' ? (
-                  <Monitor className="h-4 w-4" />
+                  <Monitor className="h-4 w-4" aria-hidden="true" />
                 ) : isDarkMode ? (
-                  <Moon className="h-4 w-4" />
+                  <Moon className="h-4 w-4" aria-hidden="true" />
                 ) : (
-                  <Sun className="h-4 w-4" />
+                  <Sun className="h-4 w-4" aria-hidden="true" />
                 )}
                 <span>Theme</span>
               </DropdownMenuSubTrigger>
@@ -146,15 +167,15 @@ function App() {
                   onValueChange={(value) => setThemePreference(normalizeThemePreference(value))}
                 >
                   <DropdownMenuRadioItem value="system" className="gap-2">
-                    <Monitor className="h-4 w-4" />
+                    <Monitor className="h-4 w-4" aria-hidden="true" />
                     System
                   </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="light" className="gap-2">
-                    <Sun className="h-4 w-4" />
+                    <Sun className="h-4 w-4" aria-hidden="true" />
                     Light
                   </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="dark" className="gap-2">
-                    <Moon className="h-4 w-4" />
+                    <Moon className="h-4 w-4" aria-hidden="true" />
                     Dark
                   </DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
@@ -175,15 +196,18 @@ function App() {
                     Error loading teams
                   </DropdownMenuItem>
                 ) : (
-                  teams.map((team) => (
-                    <DropdownMenuItem
-                      key={team}
-                      onClick={() => setSelectedTeam(team)}
-                      className={selectedTeam === team ? "bg-accent" : ""}
-                    >
-                      {team}
-                    </DropdownMenuItem>
-                  ))
+                  <DropdownMenuRadioGroup
+                    value={teamSelectionValue(selectedRosterId)}
+                    onValueChange={(value) => {
+                      setSelectedRosterId(rosterIdFromTeamSelection(value))
+                    }}
+                  >
+                    {teams.map((team) => (
+                      <DropdownMenuRadioItem key={team.value} value={team.value}>
+                        {team.label}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
                 )}
               </DropdownMenuSubContent>
             </DropdownMenuSub>
@@ -237,17 +261,26 @@ function App() {
             </TabsList>
 
             <TabsContent value="weekly" className="mt-6">
-              <WeeklyStandings selectedTeam={selectedTeam} onTeamSelect={setSelectedTeam} />
+              <WeeklyStandings
+                selectedRosterId={selectedRosterId}
+                onRosterSelect={setSelectedRosterId}
+              />
             </TabsContent>
 
             {currentWeek >= 16 && (
               <TabsContent value="playoffs" className="mt-6">
-                <PlayoffBracket week={currentWeek.toString()} selectedTeam={selectedTeam} />
+                <PlayoffBracket
+                  week={currentWeek.toString()}
+                  selectedRosterId={selectedRosterId}
+                />
               </TabsContent>
             )}
 
             <TabsContent value="overall" className="mt-6">
-              <OverallStandings selectedTeam={selectedTeam} onTeamSelect={setSelectedTeam} />
+              <OverallStandings
+                selectedRosterId={selectedRosterId}
+                onRosterSelect={setSelectedRosterId}
+              />
             </TabsContent>
           </Tabs>
         )}

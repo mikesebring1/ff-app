@@ -55,7 +55,7 @@ function PlayerScore({ change, points, placeholderForZero = false }) {
   )
 }
 
-export default function WeeklyStandings({ selectedTeam, onTeamSelect }) {
+export default function WeeklyStandings({ selectedRosterId, onRosterSelect }) {
   const [openItems, setOpenItems] = useState([])
   const [selectedWeek, setSelectedWeek] = useState("")
   
@@ -110,8 +110,8 @@ export default function WeeklyStandings({ selectedTeam, onTeamSelect }) {
   const error = weeksError || standingsError
 
   // Highlight selected team with background
-  const getHighlightStyle = (teamName) => {
-    if (selectedTeam === 'All Teams' || selectedTeam !== teamName) {
+  const getHighlightStyle = (rosterId) => {
+    if (selectedRosterId == null || selectedRosterId !== String(rosterId)) {
       return {}
     }
     
@@ -202,7 +202,7 @@ export default function WeeklyStandings({ selectedTeam, onTeamSelect }) {
                   onValueChange={setOpenItems}
                 >
                   {weeklyStandings.map((team) => {
-                    const highlight = getHighlightStyle(team.teamName)
+                    const highlight = getHighlightStyle(team.id)
                     const rankEntry = rankLayoutByRoster.get(String(team.id))
                     return (
                       <Motion.div
@@ -315,7 +315,10 @@ export default function WeeklyStandings({ selectedTeam, onTeamSelect }) {
         </CardContent>
       </Card>
       
-      <WeeklyStandingsChart selectedTeam={selectedTeam} onTeamSelect={onTeamSelect} />
+      <WeeklyStandingsChart
+        selectedRosterId={selectedRosterId}
+        onRosterSelect={onRosterSelect}
+      />
     </div>
   )
 }

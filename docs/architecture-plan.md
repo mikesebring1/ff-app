@@ -225,7 +225,7 @@ Status: deployed.
 
 ### Milestone 5: production validation
 
-Status: infrastructure import, API configuration, legacy-resource removal, and Milestones 2 through 4 are deployed. The settings polish is implemented locally and awaits frontend deployment. The first automatic Week 1 finalization remains pending until Sleeper advances to Week 2.
+Status: implementation is complete. Infrastructure import, API configuration, legacy-resource removal, and Milestones 2 through 4 are deployed. The Milestone 5 settings polish awaits frontend deployment. The remaining operational acceptance check is the first automatic Week 1 finalization, which cannot run until Sleeper advances to Week 2.
 
 1. Import the retained tables and deploy the replacement stack.
 2. Configure Vercel with the new API output and redeploy the PWA.

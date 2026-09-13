@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useLeagueContext } from './useLeagueContext'
 import { useSleeperRosters, useSleeperUsers } from './useSleeper'
 import { buildTeamOptions } from '../lib/team-names'
 
@@ -7,6 +8,7 @@ import { buildTeamOptions } from '../lib/team-names'
  * @returns {Object} { teams, loading, error }
  */
 export const useTeams = () => {
+  const leagueContextQuery = useLeagueContext()
   const rostersQuery = useSleeperRosters()
   const usersQuery = useSleeperUsers()
   const teams = useMemo(
@@ -16,7 +18,12 @@ export const useTeams = () => {
 
   return {
     teams,
-    loading: rostersQuery.isPending || usersQuery.isPending,
-    error: rostersQuery.error || usersQuery.error || null,
+    loading: leagueContextQuery.isPending
+      || (Boolean(leagueContextQuery.data)
+        && (rostersQuery.isPending || usersQuery.isPending)),
+    error: leagueContextQuery.error
+      || rostersQuery.error
+      || usersQuery.error
+      || null,
   }
 }

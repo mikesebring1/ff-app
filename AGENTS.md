@@ -52,7 +52,7 @@ There is no ECS, Fargate, ECR, VPC, polling-state table, admin key, or public mu
 - Active season, week, and league ID come from the public league-context endpoint and shared Sleeper resolver.
 - Known Monte Carlo math issues remain outside the automated-finalization change.
 - The replacement AWS stack is deployed, and the unmanaged polling-state table and polling-service repository have been deleted.
-- Milestones 2 through 4 are deployed. Milestone 5 settings polish adds a system theme preference and current Sleeper team names locally, pending frontend deployment.
+- Milestones 2 through 4 are deployed. Milestone 5 implementation is complete; its system theme preference and current Sleeper team names await frontend deployment.
 - The first automatic Week 1 finalization remains pending until Sleeper advances to Week 2.
 - `VITE_API_URL` is required. Use the deployed stack's `ApiUrl` output locally and in Vercel; there is no source-code fallback.
 

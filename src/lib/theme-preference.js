@@ -13,3 +13,31 @@ export function resolveDarkMode(preference, systemPrefersDark) {
 
   return normalizedPreference === 'dark'
 }
+
+export function getThemeStorage(browserWindow) {
+  try {
+    return browserWindow?.localStorage
+  } catch {
+    return undefined
+  }
+}
+
+export function readThemePreference(storage) {
+  try {
+    return normalizeThemePreference(storage?.getItem('theme'))
+  } catch {
+    return 'system'
+  }
+}
+
+export function persistThemePreference(storage, preference) {
+  const normalizedPreference = normalizeThemePreference(preference)
+
+  try {
+    storage?.setItem('theme', normalizedPreference)
+  } catch {
+    // Storage can be unavailable in privacy-restricted browser contexts.
+  }
+
+  return normalizedPreference
+}

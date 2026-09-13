@@ -1,46 +1,27 @@
 import { useCallback } from 'react'
 import BaseChart from './charts/BaseChart'
-import { collectTeamNames, fetchWeeklyHistory } from '../lib/weekly-history'
+import { fetchWeeklyHistory } from '../lib/weekly-history'
+import { buildWeeklyRankChart } from '../lib/standings-chart'
 import { useLeagueContext } from '../hooks/useLeagueContext'
 
-export default function WeeklyStandingsChart({ selectedTeam, onTeamSelect }) {
+export default function WeeklyStandingsChart({ selectedRosterId, onRosterSelect }) {
   const { data: leagueContext } = useLeagueContext()
   const fetchWeeklyChartData = useCallback(async () => {
-    if (!leagueContext) return { chartData: [], teamNames: [] }
+    if (!leagueContext) return { chartData: [], teams: [] }
 
     const weeklyHistory = await fetchWeeklyHistory(
       leagueContext.season,
       leagueContext.league_id
     )
-    const teamNames = collectTeamNames(weeklyHistory)
-
-    // Transform data into chart format
-    const chartData = []
-
-    weeklyHistory.forEach(({ week, standings }) => {
-      if (standings.length > 0) {
-        const weekEntry = { week }
-
-        // Add each team's rank for this week
-        standings.forEach(team => {
-          if (team.team_name && team.rank) {
-            weekEntry[team.team_name] = team.rank
-          }
-        })
-
-        chartData.push(weekEntry)
-      }
-    })
-
-    return { chartData, teamNames }
+    return buildWeeklyRankChart(weeklyHistory)
   }, [leagueContext])
 
   return (
     <BaseChart
       title="Weekly Performance Trends"
       fetchDataFn={fetchWeeklyChartData}
-      selectedTeam={selectedTeam}
-      onTeamSelect={onTeamSelect}
+      selectedRosterId={selectedRosterId}
+      onRosterSelect={onRosterSelect}
     />
   )
 }

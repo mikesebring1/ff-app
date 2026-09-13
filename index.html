@@ -24,6 +24,26 @@
     <meta name="twitter:image:alt" content="Madtown's Finest Fantasy Football - 10 solo cups arranged like a beer pong table with a football" />
     
     <meta name="theme-color" content="#000000" />
+    <script>
+      (() => {
+        let preference = 'system'
+
+        try {
+          const storedPreference = window.localStorage.getItem('theme')
+          if (storedPreference === 'light' || storedPreference === 'dark') {
+            preference = storedPreference
+          }
+        } catch {
+          // Use the system preference when storage is unavailable.
+        }
+
+        const systemPrefersDark = typeof window.matchMedia === 'function'
+          && window.matchMedia('(prefers-color-scheme: dark)').matches
+        const isDark = preference === 'dark'
+          || (preference === 'system' && systemPrefersDark)
+        document.documentElement.classList.toggle('dark', isDark)
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

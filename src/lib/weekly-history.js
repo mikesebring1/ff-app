@@ -24,17 +24,3 @@ export async function fetchWeeklyHistory(season, leagueId) {
     standings: results[index].standings || []
   }))
 }
-
-export function collectTeamNames(weeklyHistory) {
-  const names = new Set()
-
-  weeklyHistory.forEach(({ standings }) => {
-    standings.forEach((team) => {
-      if (team.team_name) {
-        names.add(team.team_name)
-      }
-    })
-  })
-
-  return Array.from(names)
-}

@@ -4,11 +4,11 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts"
 import { Button } from "@/components/ui/button"
 
-const buildChartConfig = (teamNames) => {
+const buildChartConfig = (teams) => {
   const config = {}
-  teamNames.forEach((teamName) => {
-    config[teamName] = {
-      label: teamName,
+  teams.forEach((team) => {
+    config[team.dataKey] = {
+      label: team.label,
     }
   })
   return config
@@ -18,12 +18,12 @@ const buildChartConfig = (teamNames) => {
 export default function BaseChart({ 
   title, 
   fetchDataFn, 
-  selectedTeam, 
-  onTeamSelect,
+  selectedRosterId,
+  onRosterSelect,
   maxTeams = 11 
 }) {
   const [chartData, setChartData] = useState([])
-  const [teamNames, setTeamNames] = useState([])
+  const [teams, setTeams] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -33,10 +33,10 @@ export default function BaseChart({
         setLoading(true)
         setError(null)
         
-        const { chartData: data, teamNames: names } = await fetchDataFn()
+        const { chartData: data, teams: loadedTeams } = await fetchDataFn()
         
         setChartData(data)
-        setTeamNames(names)
+        setTeams(loadedTeams)
       } catch (err) {
         console.error('Error fetching chart data:', err)
         setError('Failed to load chart data')
@@ -48,15 +48,18 @@ export default function BaseChart({
     loadChartData()
   }, [fetchDataFn])
 
-  const getStrokeColor = (teamName) => {
-    if (selectedTeam === 'All Teams') {
+  const getStrokeColor = (rosterId) => {
+    if (selectedRosterId == null) {
       return "var(--muted-foreground)"
     }
-    if (selectedTeam === teamName) {
+    if (selectedRosterId === rosterId) {
       return "var(--primary)"
     }
     return "var(--muted)"
   }
+  const selectedSeries = teams.find(
+    (team) => team.rosterId === selectedRosterId,
+  )
 
   const statusMessage = loading
     ? 'Loading chart data...'
@@ -84,7 +87,7 @@ export default function BaseChart({
         <CardTitle>{title}</CardTitle>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={buildChartConfig(teamNames)}>
+        <ChartContainer config={buildChartConfig(teams)}>
           <LineChart
             data={chartData}
             margin={{
@@ -102,48 +105,48 @@ export default function BaseChart({
               tickMargin={8}
             />
             <YAxis 
-              domain={[1, Math.max(teamNames.length, maxTeams - 1)]}
+              domain={[1, Math.max(teams.length, maxTeams - 1)]}
               reversed={true}
               tickLine={false}
               axisLine={false}
               tickMargin={8}
-              ticks={Array.from({length: Math.max(teamNames.length, maxTeams - 1)}, (_, i) => i + 1)}
+              ticks={Array.from({length: Math.max(teams.length, maxTeams - 1)}, (_, i) => i + 1)}
             />
             <YAxis 
               yAxisId="right"
               orientation="right"
-              domain={[1, Math.max(teamNames.length, maxTeams - 1)]}
+              domain={[1, Math.max(teams.length, maxTeams - 1)]}
               reversed={true}
               tickLine={false}
               axisLine={false}
               tickMargin={8}
-              ticks={Array.from({length: Math.max(teamNames.length, maxTeams - 1)}, (_, i) => i + 1)}
+              ticks={Array.from({length: Math.max(teams.length, maxTeams - 1)}, (_, i) => i + 1)}
             />
             <ChartTooltip 
               cursor={false}
               content={<ChartTooltipContent hideLabel />}
             />
             {/* Render non-selected teams first */}
-            {teamNames
-              .filter(teamName => teamName !== selectedTeam)
-              .map((teamName) => (
+            {teams
+              .filter((team) => team.rosterId !== selectedRosterId)
+              .map((team) => (
                 <Line
-                  key={teamName}
+                  key={team.rosterId}
                   type="monotone"
-                  dataKey={teamName}
-                  stroke={getStrokeColor(teamName)}
+                  dataKey={team.dataKey}
+                  stroke={getStrokeColor(team.rosterId)}
                   strokeWidth={2}
                   dot={false}
                   connectNulls={false}
                 />
               ))}
             {/* Render selected team last so it appears on top */}
-            {selectedTeam && selectedTeam !== 'All Teams' && teamNames.includes(selectedTeam) && (
+            {selectedSeries && (
               <Line
-                key={selectedTeam}
+                key={selectedSeries.rosterId}
                 type="monotone"
-                dataKey={selectedTeam}
-                stroke={getStrokeColor(selectedTeam)}
+                dataKey={selectedSeries.dataKey}
+                stroke={getStrokeColor(selectedSeries.rosterId)}
                 strokeWidth={3}
                 dot={false}
                 connectNulls={false}
@@ -155,16 +158,16 @@ export default function BaseChart({
         {/* Team Legend */}
         <div className="mt-4 pb-2">
           <div className="flex flex-wrap justify-center gap-2">
-            {teamNames.map((teamName) => {
-              const isSelected = selectedTeam === teamName
-              const isAllTeams = selectedTeam === 'All Teams'
+            {teams.map((team) => {
+              const isSelected = selectedRosterId === team.rosterId
+              const isAllTeams = selectedRosterId == null
               
               return (
                 <Button
-                  key={teamName}
+                  key={team.rosterId}
                   variant={isSelected ? "default" : "outline"}
                   size="sm"
-                  onClick={() => onTeamSelect(isSelected ? 'All Teams' : teamName)}
+                  onClick={() => onRosterSelect(isSelected ? null : team.rosterId)}
                   className={`text-xs h-7 px-2 ${
                     isSelected
                       ? ''
@@ -173,7 +176,7 @@ export default function BaseChart({
                         : 'opacity-50 hover:opacity-100'
                   }`}
                 >
-                  {teamName}
+                  {team.label}
                 </Button>
               )
             })}
