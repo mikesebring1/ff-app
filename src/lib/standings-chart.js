@@ -1,15 +1,15 @@
 import { withDistinctTeamLabels } from './team-names.js'
 
-export function standingRosterId(team) {
+function standingRosterId(team) {
   const rosterId = team?.team_id ?? team?.roster_id ?? team?.id
   return rosterId == null ? null : String(rosterId)
 }
 
-export function teamSeriesKey(rosterId) {
+function teamSeriesKey(rosterId) {
   return `roster:${String(rosterId)}`
 }
 
-export function collectTeamSeries(weeklyHistory) {
+function collectTeamSeries(weeklyHistory) {
   const teamsByRoster = new Map()
 
   weeklyHistory.forEach(({ standings }) => {

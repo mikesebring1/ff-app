@@ -16,7 +16,6 @@ FIXTURES_PATH = (
 )
 sys.path.insert(0, str(STANDINGS_SOURCE))
 sys.modules.setdefault("boto3", types.ModuleType("boto3"))
-sys.modules.setdefault("requests", types.ModuleType("requests"))
 
 from ff_standings.calculator import StandingsCalculator  # noqa: E402
 

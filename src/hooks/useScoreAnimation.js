@@ -6,7 +6,7 @@ import {
 } from '../lib/live-score-changes'
 import { createScoreFlashController } from '../lib/score-flash-controller'
 
-export const SCORE_FLASH_DURATION_MS = 1_100
+const SCORE_FLASH_DURATION_MS = 1_100
 
 /**
  * Track score changes from successive network snapshots in the same live

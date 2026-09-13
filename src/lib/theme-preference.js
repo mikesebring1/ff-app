@@ -1,4 +1,4 @@
-export const THEME_PREFERENCES = ['system', 'light', 'dark']
+const THEME_PREFERENCES = ['system', 'light', 'dark']
 
 export function normalizeThemePreference(value) {
   return THEME_PREFERENCES.includes(value) ? value : 'system'

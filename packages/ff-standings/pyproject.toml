@@ -8,12 +8,8 @@ version = "1.0.0"
 description = "Fantasy Football vs Everyone standings calculation library"
 readme = "README.md"
 requires-python = ">=3.11"
-authors = [
-  { name = "FF App", email = "noreply@example.com" }
-]
 dependencies = [
-  "boto3",
-  "requests"
+  "boto3"
 ]
 
 [tool.setuptools]
@@ -22,5 +18,3 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["ff_standings*"]
-
-

@@ -69,7 +69,6 @@ export class InfrastructureStack extends cdk.Stack {
       description: 'Common DynamoDB and league-context utilities for Lambda functions'
     });
 
-    // New: Standings calculation layer providing ff_standings package
     const standingsCalculationLayer = new lambda.LayerVersion(this, 'StandingsCalculationLayer', {
       layerVersionName: 'ff-standings-calculation-layer',
       code: lambda.Code.fromAsset('../packages/ff-standings', {
@@ -90,7 +89,6 @@ export class InfrastructureStack extends cdk.Stack {
                 if (!fs.existsSync(pythonDir)) {
                   fs.mkdirSync(pythonDir, { recursive: true });
                 }
-                // Resolve absolute path to packages/ff-standings from compiled file location (infra/lib)
                 const packagePath = path.resolve(__dirname, '../../packages/ff-standings');
                 if (!fs.existsSync(packagePath)) {
                   throw new Error(`ff-standings package not found at ${packagePath}`);

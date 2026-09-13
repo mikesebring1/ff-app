@@ -76,13 +76,10 @@ function App() {
 
   const [selectedRosterId, setSelectedRosterId] = useState(null)
 
-  // Fetch team names dynamically from API
   const { teams, loading: teamsLoading, error: teamsError } = useTeams()
-  
-  // Network status for mobile connectivity awareness
+
   const { isOnline, isSlowConnection } = useNetworkStatus()
-  
-  // Get current week info for playoff tab visibility
+
   const {
     currentWeek,
     isLoading: leagueContextLoading,
@@ -126,7 +123,6 @@ function App() {
   return (
     <>
       <div className="min-h-screen bg-background">
-      {/* Menu button in absolute top-right corner */}
       <div className="absolute top-8 right-8">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

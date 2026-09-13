@@ -593,7 +593,7 @@ def lambda_handler(event, context):
         "weekly_standings": dynamodb.Table(os.environ["WEEKLY_STANDINGS_TABLE"]),
         "overall_standings": dynamodb.Table(os.environ["OVERALL_STANDINGS_TABLE"]),
     }
-    standings_service = StandingsService(tables, enable_persistent_cache=False)
+    standings_service = StandingsService(tables)
     league_context = resolve_league_context_from_env()
     try:
         result = run_finalization(

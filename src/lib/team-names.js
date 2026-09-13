@@ -18,7 +18,7 @@ export function rosterIdFromTeamSelection(value) {
   return rosterId || null
 }
 
-export function getUserTeamName(user) {
+function getUserTeamName(user) {
   return nonEmptyString(user?.metadata?.team_name)
     || nonEmptyString(user?.display_name)
     || nonEmptyString(user?.username)
