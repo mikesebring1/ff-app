@@ -24,7 +24,7 @@ npx cdk diff
 
 ## Active architecture
 
-The frontend is a React/Vite PWA hosted on Vercel. Weekly standings are assembled in the browser from Sleeper rosters, users, players, projections, and matchups. Only the visible, online current-week matchup query repeats, at a ten-second interval; metadata uses longer caches. Successive live player-score changes flash green or red by direction, and Motion animates rank changes. Initial or restored data establishes a fresh baseline, and reduced-motion preferences disable these effects. Overall standings and both charts read persisted data through API Gateway.
+The frontend is a React/Vite PWA hosted on Vercel. Weekly standings are assembled in the browser from Sleeper rosters, users, projections, and matchups plus a compact player map from the read API. Only the visible, online current-week matchup query repeats, at a ten-second interval; metadata uses longer caches. Successive live player-score changes flash green or red by direction, and Motion animates rank changes. Initial or restored data establishes a fresh baseline, and reduced-motion preferences disable these effects. Overall standings and both charts read persisted data through API Gateway.
 
 The CDK stack in `infra/lib/infrastructure-stack.ts` defines:
 
@@ -43,16 +43,16 @@ There is no ECS, Fargate, ECR, VPC, polling-state table, admin key, or public mu
 - JavaScript and Python weekly scoring share JSON fixtures and split tied positions into identical fractional records.
 - The hourly finalizer resolves the active league and processes every completed week without a completion marker.
 - Finalization stores a raw matchup snapshot, recalculates canonical weekly and overall standings, runs Monte Carlo projections, and only then marks the week complete.
+- The finalizer refreshes a compact active non-kicker player map about once a week, including during Week 1, and the frontend reads it through `/players` with a one-day cache.
 - A conditional season-wide lease serializes finalizer runs, while per-week leases track completion and retries. Failed work remains retryable, and an IAM-authenticated direct Lambda invocation can force a completed week to reprocess.
 - Finalizer job records and league metadata live in `ff-league-data`; no separate state table is needed.
 
 ## Important current constraints
 
 - Active season, week, and league ID come from the public league-context endpoint and shared Sleeper resolver.
-- The frontend still fetches Sleeper's full player directory; replacing that with the compact backend map is a future milestone.
 - Known Monte Carlo math issues remain outside the automated-finalization change.
 - The replacement AWS stack is deployed, and the unmanaged polling-state table and polling-service repository have been deleted.
-- Milestone 2 foreground polling is deployed. Milestone 3 live feedback is implemented locally and awaits review and frontend deployment.
+- Milestone 2 foreground polling is deployed. Milestone 3 live feedback and Milestone 4 player-map changes are implemented locally and await frontend/infrastructure deployment.
 - The first automatic Week 1 finalization remains pending until Sleeper advances to Week 2.
 - `VITE_API_URL` is required. Use the deployed stack's `ApiUrl` output locally and in Vercel; there is no source-code fallback.
 

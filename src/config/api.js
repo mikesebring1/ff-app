@@ -10,7 +10,8 @@ export const apiConfig = {
   endpoints: {
     weekly: `${API_BASE_URL}/weekly`,
     overall: `${API_BASE_URL}/overall`,
-    leagueContext: `${API_BASE_URL}/league-context`
+    leagueContext: `${API_BASE_URL}/league-context`,
+    players: `${API_BASE_URL}/players`
   }
 }
 

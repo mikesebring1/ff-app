@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Trophy, Medal } from "lucide-react"
 import { useWeeklyStandings } from '../hooks/useWeeklyStandings'
 import { useOverallStandings } from '../hooks/useOverallStandings'
-import { useSleeperPlayers } from '../hooks/useSleeper'
+import { usePlayerMap } from '../hooks/usePlayerMap'
 
 
 function PlayoffTeamScore({ points }) {
@@ -53,7 +53,7 @@ export default function PlayoffBracket({ week, selectedTeam }) {
   const { data: week16Results = [] } = useWeeklyStandings("16")
   
   // Get player data for team abbreviations
-  const { data: playersData } = useSleeperPlayers()
+  const { data: playersData } = usePlayerMap()
   
   // Get top 4 teams for playoffs
   const playoffTeams = overallStandings.slice(0, 4).map((team, index) => ({

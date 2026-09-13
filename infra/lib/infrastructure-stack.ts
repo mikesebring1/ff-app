@@ -141,6 +141,7 @@ export class InfrastructureStack extends cdk.Stack {
         LEAGUE_DATA_TABLE: leagueDataTable.tableName,
       },
       timeout: cdk.Duration.minutes(15),
+      memorySize: 512,
       logGroup: weekFinalizerLogGroup,
       layers: [requestsLayer, commonUtilsLayer, standingsCalculationLayer]
     });
@@ -195,6 +196,7 @@ export class InfrastructureStack extends cdk.Stack {
         ...leagueContextEnvironment,
         WEEKLY_STANDINGS_TABLE: weeklyStandingsTable.tableName,
         OVERALL_STANDINGS_TABLE: overallStandingsTable.tableName,
+        LEAGUE_DATA_TABLE: leagueDataTable.tableName,
       },
       timeout: cdk.Duration.seconds(180),
       memorySize: 512,
@@ -224,6 +226,7 @@ export class InfrastructureStack extends cdk.Stack {
 
     weeklyStandingsTable.grant(apiFunction, 'dynamodb:Query');
     overallStandingsTable.grant(apiFunction, 'dynamodb:Query');
+    leagueDataTable.grant(apiFunction, 'dynamodb:GetItem');
 
     weeklyStandingsTable.grant(monteCarloFunction, 'dynamodb:Query');
     overallStandingsTable.grant(
@@ -245,7 +248,12 @@ export class InfrastructureStack extends cdk.Stack {
     // API Gateway
     const api = new apigateway.RestApi(this, 'FantasyFootballApi', {
       restApiName: 'fantasy-football-vs-everyone',
-      description: 'API for Fantasy Football vs Everyone app'
+      description: 'API for Fantasy Football vs Everyone app',
+      minCompressionSize: cdk.Size.kibibytes(1),
+      deployOptions: {
+        throttlingRateLimit: 5,
+        throttlingBurstLimit: 100
+      }
     });
 
     // API Routes
@@ -261,6 +269,10 @@ export class InfrastructureStack extends cdk.Stack {
     const leagueContextResource = api.root.addResource('league-context');
     leagueContextResource.addMethod('GET', apiIntegration);
     leagueContextResource.addMethod('OPTIONS', apiIntegration);
+
+    const playersResource = api.root.addResource('players');
+    playersResource.addMethod('GET', apiIntegration);
+    playersResource.addMethod('OPTIONS', apiIntegration);
 
     // Stack Outputs
     new cdk.CfnOutput(this, 'ApiUrl', {

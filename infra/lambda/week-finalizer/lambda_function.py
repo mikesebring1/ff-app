@@ -10,6 +10,7 @@ import logging
 import os
 import time
 import uuid
+from decimal import Decimal
 
 import boto3
 import requests
@@ -25,7 +26,14 @@ logger.setLevel(logging.INFO)
 
 FINALIZATION_DATA_TYPE = "week_finalization"
 RUN_LEASE_DATA_TYPE = "finalization_run_lease"
+PLAYER_DATA_TYPE = "players"
+PLAYER_CACHE_ID = "nfl_players"
 LEASE_SECONDS = 20 * 60
+PLAYER_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60
+PLAYER_CACHE_SCHEMA_VERSION = 2
+# DynamoDB items are limited to 400 KiB. This lower JSON-size ceiling leaves
+# room for DynamoDB's attribute encoding and future metadata additions.
+MAX_PLAYER_CACHE_BYTES = 350 * 1024
 DEFAULT_PLAYOFF_WEEK_START = 16
 
 
@@ -234,8 +242,146 @@ def fetch_sleeper_data(url, timeout=30):
     return response.json()
 
 
+def get_player_cache_item(table):
+    response = table.get_item(
+        Key={"data_type": PLAYER_DATA_TYPE, "id": PLAYER_CACHE_ID},
+        ConsistentRead=True,
+    )
+    return response.get("Item")
+
+
+def player_cache_is_compatible(item, league_id, season):
+    """Return whether an existing map is safe as a degraded-mode fallback."""
+    if not isinstance(item, dict):
+        return False
+    players = item.get("data")
+    return (
+        item.get("league_id") == league_id
+        and item.get("season") == season
+        and item.get("schema_version") == PLAYER_CACHE_SCHEMA_VERSION
+        and isinstance(players, dict)
+        and bool(players)
+        and item.get("player_count") == len(players)
+    )
+
+
+def player_cache_is_fresh(item, league_id, season, now=None):
+    """Return whether the compact map matches this league season and is current."""
+    if not player_cache_is_compatible(item, league_id, season):
+        return False
+    refreshed_at = item.get("refreshed_at")
+    if not isinstance(refreshed_at, (int, float, Decimal)) or isinstance(refreshed_at, bool):
+        return False
+    now = int(time.time()) if now is None else int(now)
+    return 0 <= now - int(refreshed_at) < PLAYER_CACHE_TTL_SECONDS
+
+
+def compact_active_players(all_players):
+    """Keep active non-kickers and only fields consumed by the application."""
+    if not isinstance(all_players, dict):
+        raise ValueError("Sleeper player directory must be an object keyed by player ID")
+
+    fields = ("first_name", "last_name", "position", "team")
+    players = {}
+    for player_id, player in all_players.items():
+        if not player_id or not isinstance(player, dict):
+            continue
+        team = player.get("team")
+        if not isinstance(team, str) or not team.strip():
+            continue
+        if str(player.get("position") or "").upper() == "K":
+            continue
+        players[str(player_id)] = {field: player.get(field) for field in fields}
+        players[str(player_id)]["team"] = team.strip()
+    return players
+
+
+def build_player_cache_item(all_players, league_id, season, now=None):
+    now = int(time.time()) if now is None else int(now)
+    players = compact_active_players(all_players)
+    if not players:
+        raise ValueError("Sleeper player directory contains no active non-kickers")
+    payload_bytes = len(
+        json.dumps(players, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    )
+    item = {
+        "data_type": PLAYER_DATA_TYPE,
+        "id": PLAYER_CACHE_ID,
+        "season": season,
+        "league_id": league_id,
+        "data": players,
+        "schema_version": PLAYER_CACHE_SCHEMA_VERSION,
+        "refreshed_at": now,
+        "refresh_after": now + PLAYER_CACHE_TTL_SECONDS,
+        "player_count": len(players),
+        "payload_bytes": payload_bytes,
+        "storage_strategy": "active_nfl_non_kicker_v2",
+        "filtering_info": {
+            "original_count": len(all_players),
+            "requires_team": True,
+            "excluded_positions": ["K"],
+        },
+        "serialized_bytes": 0,
+    }
+    # Include the size field in its own measurement. Iterate because changing
+    # the digit count can change the serialized length by a byte.
+    for _ in range(3):
+        serialized_bytes = len(
+            json.dumps(item, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+        )
+        if item["serialized_bytes"] == serialized_bytes:
+            break
+        item["serialized_bytes"] = serialized_bytes
+    if serialized_bytes > MAX_PLAYER_CACHE_BYTES:
+        raise ValueError(
+            "Compact player cache is too large for safe single-item storage: "
+            f"{serialized_bytes} bytes exceeds {MAX_PLAYER_CACHE_BYTES} bytes"
+        )
+    return item
+
+
+def refresh_player_cache(table, league_id, season, now=None):
+    """Download and store one compact copy of Sleeper's player directory."""
+    all_players = fetch_sleeper_data(
+        "https://api.sleeper.app/v1/players/nfl", timeout=45
+    )
+    item = build_player_cache_item(all_players, league_id, season, now=now)
+    table.put_item(Item=convert_floats_to_decimal(item))
+    logger.info(
+        "Cached %s active non-kickers from %s Sleeper players (%s bytes)",
+        item["player_count"],
+        item["filtering_info"]["original_count"],
+        item["serialized_bytes"],
+    )
+    return item
+
+
+def ensure_player_cache(
+    table, league_id, season, now=None, allow_stale_on_error=False
+):
+    """Refresh stale player metadata. Call only while holding the season lease."""
+    item = get_player_cache_item(table)
+    if player_cache_is_fresh(item, league_id, season, now=now):
+        return False
+    try:
+        refresh_player_cache(table, league_id, season, now=now)
+    except Exception:
+        if not allow_stale_on_error or not player_cache_is_compatible(
+            item, league_id, season
+        ):
+            raise
+        logger.exception(
+            "Player cache refresh failed; continuing completed-week finalization "
+            "with the stale compatible map for league %s season %s",
+            league_id,
+            season,
+        )
+        return False
+    return True
+
+
 def cache_league_data(league_id, season, table):
-    """Refresh all metadata needed by standings and playoff calculations."""
+    """Refresh league-specific metadata needed by standings calculations."""
     users = fetch_sleeper_data(f"https://api.sleeper.app/v1/league/{league_id}/users")
     rosters = fetch_sleeper_data(f"https://api.sleeper.app/v1/league/{league_id}/rosters")
     league_info = fetch_sleeper_data(f"https://api.sleeper.app/v1/league/{league_id}")
@@ -264,26 +410,6 @@ def cache_league_data(league_id, season, table):
         "data": league_info,
     }))
 
-    player_ids = set()
-    for roster in rosters:
-        for field in ("players", "starters", "reserve", "taxi"):
-            player_ids.update(roster.get(field) or [])
-
-    all_players = fetch_sleeper_data("https://api.sleeper.app/v1/players/nfl", timeout=45)
-    fields = ("first_name", "last_name", "position", "team")
-    players = {
-        player_id: {field: all_players.get(player_id, {}).get(field) for field in fields}
-        for player_id in player_ids
-    }
-    table.put_item(Item=convert_floats_to_decimal({
-        "data_type": "players",
-        "id": "nfl_players",
-        "season": season,
-        "league_id": league_id,
-        "data": players,
-        "player_count": len(players),
-        "storage_strategy": "league_roster_v1",
-    }))
     return {str(roster["roster_id"]) for roster in rosters}
 
 
@@ -351,11 +477,21 @@ def run_finalization(event, league_context, tables, standings_service, lambda_cl
     season = league_context["season"]
     completed_weeks = completed_regular_season_weeks(league_context)
     force_weeks = requested_force_weeks(event, completed_weeks)
-    if not completed_weeks:
-        return {"season": season, "league_id": league_id, "weeks_processed": []}
+    state_table = tables["league_data"]
+
+    # Week 1 has no completed standings work, but it still needs to bootstrap
+    # player metadata before the frontend starts using the backend endpoint.
+    if not completed_weeks and player_cache_is_fresh(
+        get_player_cache_item(state_table), league_id, season
+    ):
+        return {
+            "season": season,
+            "league_id": league_id,
+            "weeks_processed": [],
+            "player_cache_refreshed": False,
+        }
 
     attempt_id = attempt_id or str(uuid.uuid4())
-    state_table = tables["league_data"]
 
     if not acquire_run_lease(state_table, league_id, season, attempt_id):
         return {
@@ -366,6 +502,22 @@ def run_finalization(event, league_context, tables, standings_service, lambda_cl
         }
 
     try:
+        # Recheck after acquiring the shared lease in case another invocation
+        # refreshed the item between the optimistic read and lease acquisition.
+        player_cache_refreshed = ensure_player_cache(
+            state_table,
+            league_id,
+            season,
+            allow_stale_on_error=bool(completed_weeks),
+        )
+        if not completed_weeks:
+            return {
+                "season": season,
+                "league_id": league_id,
+                "weeks_processed": [],
+                "player_cache_refreshed": player_cache_refreshed,
+            }
+
         acquired = [
             week for week in completed_weeks
             if acquire_week(
@@ -378,7 +530,12 @@ def run_finalization(event, league_context, tables, standings_service, lambda_cl
             )
         ]
         if not acquired:
-            return {"season": season, "league_id": league_id, "weeks_processed": []}
+            return {
+                "season": season,
+                "league_id": league_id,
+                "weeks_processed": [],
+                "player_cache_refreshed": player_cache_refreshed,
+            }
 
         hashes = {}
         try:
@@ -419,7 +576,12 @@ def run_finalization(event, league_context, tables, standings_service, lambda_cl
                 )
             raise
 
-        return {"season": season, "league_id": league_id, "weeks_processed": acquired}
+        return {
+            "season": season,
+            "league_id": league_id,
+            "weeks_processed": acquired,
+            "player_cache_refreshed": player_cache_refreshed,
+        }
     finally:
         release_run_lease(state_table, league_id, season, attempt_id)
 

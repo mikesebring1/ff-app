@@ -224,28 +224,3 @@ export const useSleeperProjections = ({ week } = {}) => {
     refetchOnWindowFocus: false,
   })
 }
-
-export const useSleeperPlayers = () => useQuery({
-  queryKey: ['sleeper-players'],
-  queryFn: async ({ signal }) => {
-    const players = await fetchSleeperJson('/players/nfl', {
-      timeout: 30_000,
-      signal,
-      resource: 'players',
-      queryKey: 'nfl',
-    })
-    const playerArray = Object.entries(players).map(([id, data]) => ({
-      player_id: id,
-      ...data,
-    }))
-
-    return {
-      totalPlayers: playerArray.length,
-      activePlayers: playerArray.filter((player) => player.team).length,
-      players,
-    }
-  },
-  staleTime: 24 * 60 * 60 * 1000,
-  gcTime: 24 * 60 * 60 * 1000,
-  refetchOnWindowFocus: false,
-})

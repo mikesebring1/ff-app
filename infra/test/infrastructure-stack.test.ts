@@ -37,6 +37,7 @@ describe('streamlined infrastructure', () => {
     });
     template.hasResourceProperties('AWS::Lambda::Function', Match.objectLike({
       FunctionName: 'ff-week-finalizer',
+      MemorySize: 512,
       Environment: Match.objectLike({
         Variables: Match.objectLike({
           SLEEPER_LEAGUE_SEED_ID: '1388309161581752320'
@@ -74,15 +75,40 @@ describe('streamlined infrastructure', () => {
     const options = Object.values(methods).filter(
       (method: any) => method.Properties.HttpMethod === 'OPTIONS'
     );
-    expect(nonOptions).toHaveLength(3);
+    expect(nonOptions).toHaveLength(4);
     expect(nonOptions.every((method: any) => method.Properties.HttpMethod === 'GET')).toBe(true);
-    expect(options).toHaveLength(3);
+    expect(options).toHaveLength(4);
     expect(
       Object.values(methods).every(
         (method: any) => method.Properties.Integration.Type === 'AWS_PROXY'
       )
     ).toBe(true);
     expect(rendered).not.toContain('Access-Control-Allow-Origin');
+
+    template.hasResourceProperties('AWS::ApiGateway::RestApi', {
+      MinimumCompressionSize: 1024
+    });
+    template.hasResourceProperties('AWS::ApiGateway::Resource', {
+      PathPart: 'players'
+    });
+    template.hasResourceProperties('AWS::ApiGateway::Stage', Match.objectLike({
+      MethodSettings: Match.arrayWith([
+        Match.objectLike({
+          HttpMethod: '*',
+          ResourcePath: '/*',
+          ThrottlingRateLimit: 5,
+          ThrottlingBurstLimit: 100
+        })
+      ])
+    }));
+    template.hasResourceProperties('AWS::Lambda::Function', Match.objectLike({
+      FunctionName: 'ff-api-handler',
+      Environment: Match.objectLike({
+        Variables: Match.objectLike({
+          LEAGUE_DATA_TABLE: Match.anyValue()
+        })
+      })
+    }));
   });
 
   test('contains no retired polling or admin infrastructure', () => {

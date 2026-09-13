@@ -2,11 +2,11 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   useSleeperMatchups,
-  useSleeperPlayers,
   useSleeperProjections,
   useSleeperRosters,
   useSleeperUsers,
 } from './useSleeper'
+import { usePlayerMap } from './usePlayerMap'
 import { buildWeeklyStandings } from '../lib/vs-everyone'
 
 export function useAvailableWeeks() {
@@ -22,7 +22,7 @@ export function useWeeklyStandings(week) {
   const matchupsQuery = useSleeperMatchups(week)
   const rostersQuery = useSleeperRosters()
   const usersQuery = useSleeperUsers()
-  const playersQuery = useSleeperPlayers()
+  const playersQuery = usePlayerMap()
   const projectionsQuery = useSleeperProjections({ week })
 
   const isReady = Boolean(

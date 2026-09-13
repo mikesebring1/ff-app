@@ -9,8 +9,8 @@ This approach favors a small system with clear ownership:
 - An open PWA polls the current Sleeper matchup and renders live scores.
 - The browser detects score changes and animates them locally.
 - A scheduled Lambda finalizes completed weeks, refreshes league context, updates overall standings, and runs playoff projections.
-- DynamoDB stores finalized results and a compact map of players relevant to the league.
-- The existing API serves persisted standings and league context to the PWA.
+- DynamoDB stores finalized results and a compact map of active non-kicker NFL players.
+- The existing API serves persisted standings, league context, and the player map to the PWA.
 
 AppSync, DynamoDB Streams, and native iOS development are deferred. They do not provide enough value for the current league size and foreground-only live experience.
 
@@ -27,9 +27,9 @@ AppSync, DynamoDB Streams, and native iOS development are deferred. They do not 
 
 The weekly screen polls Sleeper in the browser and calculates live standings in JavaScript. The backend now contains an hourly week finalizer that persists completed weeks and invokes the Monte Carlo Lambda without an admin action. Conditional records in `ff-league-data` provide leases, completion state, and catch-up after downtime.
 
-The API is read-only: `/league-context`, `/weekly`, and `/overall`. The admin prompt, key, mutation routes, polling state, ECS/Fargate task, ECR repository definition, and polling VPC have been removed from the application and CDK template.
+The API is read-only: `/league-context`, `/players`, `/weekly`, and `/overall`. The admin prompt, key, mutation routes, polling state, ECS/Fargate task, ECR repository definition, and polling VPC have been removed from the application and CDK template.
 
-The frontend has one coordinated polling stream per current league/week matchup query. It runs every ten seconds only while the page is visible and online; returning to the foreground or reconnecting triggers an immediate refresh. Rosters and users are cached for four hours, projections for fifteen minutes, and the full player directory for one day. The full directory is still fetched by each browser even though the UI only needs metadata for players relevant to this league.
+The frontend has one coordinated polling stream per current league/week matchup query. It runs every ten seconds only while the page is visible and online; returning to the foreground or reconnecting triggers an immediate refresh. Rosters and users are cached for four hours, projections for fifteen minutes, and the backend player map for one day. Browsers do not request Sleeper's full player directory.
 
 The refactored stack is deployed. Its three retained tables were imported successfully, the frontend uses the new API output, and the unmanaged polling-state table and polling-service ECR repository have been deleted.
 
@@ -71,27 +71,26 @@ The browser retains the previous matchup result by `roster_id` and `player_id`. 
 
 ```mermaid
 flowchart LR
-    J[Weekly context refresh] --> S[Sleeper APIs]
-    S --> X[Filter to league-relevant players and fields]
-    X --> D[(DynamoDB league context)]
-    D --> A[League context API]
-    A --> P[React PWA]
+    J[Hourly finalizer] -->|when seven-day cache is stale| S[Sleeper player API]
+    S --> X[Keep active non-kickers and four UI fields]
+    X --> D[(DynamoDB player-map item)]
+    D --> A[GET /players]
+    A -->|cached one day| P[React PWA]
 ```
 
-The PWA must not access DynamoDB directly. The API returns one compact context response containing:
+The PWA must not access DynamoDB directly. The league-context endpoint returns:
 
 - Active season and week.
 - Active Sleeper league ID.
 - League status and settings needed by the UI.
-- Roster-to-team-name mappings.
-- Player ID, display name, position, and NFL team for players relevant to league rosters.
-- A context version and update timestamp.
 
-The compact player map can be stored as one league-season item while it remains safely below DynamoDB's 400 KB item limit. If it approaches that limit, store one item per player and assemble the API response with batched reads.
+The dedicated player endpoint returns a versioned map containing player ID, first name, last name, position, and NFL team. Keeping it separate prevents the five-minute league-context refresh from repeatedly transferring the larger map.
+
+The current Sleeper directory measured about 14.6 MB, while filtering to players assigned to an NFL team, excluding kickers, and retaining four fields produced about 217 KB of compact JSON. The item has a conservative 350 KiB serialized-size ceiling below DynamoDB's 400 KiB item limit. If it reaches that ceiling, split the map across items before expanding the filter or fields.
 
 League IDs change between Sleeper seasons. NFL state supplies the current season and week but does not identify this league. Resolve the current league through a stable configured Sleeper user ID plus an expected league identity, and fail clearly if the lookup finds zero or multiple matches. Do not silently select an arbitrary league.
 
-A newly rostered player missing from the compact map may temporarily display a fallback name. The next scheduled finalization refresh repairs it. The finalizer also bootstraps the roster-scoped player cache itself, so no manual player fetch is required.
+The map includes active free agents and waiver options, not just players already on fantasy rosters. A player newly assigned to an NFL team may temporarily display a fallback name until the next weekly refresh. The finalizer bootstraps the cache during Week 1, so no completed week or manual player fetch is required. A refresh failure can fall back to a stale map only when its league, season, schema, and contents remain compatible; this keeps completed-week processing moving without allowing missing or obsolete bootstrap data into calculations.
 
 ### End-of-week processing
 
@@ -132,7 +131,7 @@ The finalizer should process only missing or explicitly reprocessed weeks. It sh
 | Playoff probabilities | Latest successful Monte Carlo run |
 | Current season and NFL week | Sleeper NFL state |
 | Current league ID | Validated league resolution from stable league identity |
-| Player display metadata | Compact league context in DynamoDB |
+| Player display metadata | Compact player map in DynamoDB |
 
 The JavaScript and Python standings calculators must share fixture files covering normal rankings, ties, score corrections, zero scores, and reordered input. Both implementations must produce the same records before the backend is treated as canonical for final results.
 
@@ -142,7 +141,9 @@ The template contains exactly three retained DynamoDB tables, the read API, the 
 
 API Gateway sends both `GET` and `OPTIONS` requests through the read Lambda. The Lambda echoes `Access-Control-Allow-Origin` only for the production site, stable project aliases, and deployment hosts within the app's Vercel team namespace. This supports changing preview deployment names without granting every `vercel.app` site browser access. CORS does not authenticate direct HTTP clients.
 
-Hourly scheduling is intentionally simple and cheap. A no-op run only resolves Sleeper state and attempts conditional acquisitions; player metadata and matchups are fetched only when a missing completed week is found. The full player directory is therefore downloaded by the backend about once per football week during normal operation.
+The API stage applies a shared five-request-per-second rate limit with a burst capacity of 100 requests. The burst supports concurrent app startup and the chart's historical-week reads; the lower sustained rate limits abuse of the public endpoints. Live matchup polling calls Sleeper directly, so it is unaffected by this throttle.
+
+Hourly scheduling is intentionally simple and cheap. A no-op run resolves Sleeper state and checks player-cache freshness; the full player directory is downloaded only when its seven-day cache is stale. The existing season-wide lease coordinates both refresh and finalization, with freshness rechecked after lease acquisition so concurrent runs do not duplicate the large download. Matchups and league-specific metadata are fetched only when a completed week needs processing.
 
 ### Deleted-stack recovery
 
@@ -214,10 +215,12 @@ Status: implemented locally, pending independent review and frontend deployment.
 
 ### Milestone 4: compact league player map
 
+Status: implemented locally, pending independent review and infrastructure/frontend deployment.
+
 1. Refresh the full Sleeper player directory in the backend once weekly.
-2. Filter it to IDs present on league rosters and retain only UI fields.
-3. Store the compact, versioned context in DynamoDB.
-4. Return it through the league-context endpoint.
+2. Filter it to active players assigned to NFL teams, exclude kickers, and retain only UI fields.
+3. Store the compact, versioned map in DynamoDB with a safe item-size ceiling.
+4. Return it through a dedicated compressed `/players` endpoint.
 5. Remove the full player-directory request from the browser.
 
 ### Milestone 5: production validation
@@ -228,6 +231,7 @@ Status: infrastructure import, API configuration, and legacy-resource removal ar
 2. Configure Vercel with the new API output and redeploy the PWA.
 3. Verify automatic catch-up and one live weekly transition.
 4. Remove the two unmanaged legacy resources after verification.
+5. Deploy the Milestone 4 infrastructure, let the hourly finalizer populate `/players`, verify the endpoint, and then deploy the frontend.
 
 ## Deferred options
 
