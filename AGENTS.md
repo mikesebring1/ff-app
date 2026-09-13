@@ -24,7 +24,7 @@ npx cdk diff
 
 ## Active architecture
 
-The frontend is a React/Vite PWA hosted on Vercel. Weekly standings are assembled in the browser from Sleeper rosters, users, players, projections, and matchups. Only the visible, online current-week matchup query repeats, at a ten-second interval; metadata uses longer caches. Overall standings and both charts read persisted data through API Gateway.
+The frontend is a React/Vite PWA hosted on Vercel. Weekly standings are assembled in the browser from Sleeper rosters, users, players, projections, and matchups. Only the visible, online current-week matchup query repeats, at a ten-second interval; metadata uses longer caches. Successive live player-score changes flash green or red by direction, and Motion animates rank changes. Initial or restored data establishes a fresh baseline, and reduced-motion preferences disable these effects. Overall standings and both charts read persisted data through API Gateway.
 
 The CDK stack in `infra/lib/infrastructure-stack.ts` defines:
 
@@ -52,6 +52,7 @@ There is no ECS, Fargate, ECR, VPC, polling-state table, admin key, or public mu
 - The frontend still fetches Sleeper's full player directory; replacing that with the compact backend map is a future milestone.
 - Known Monte Carlo math issues remain outside the automated-finalization change.
 - The replacement AWS stack is deployed, and the unmanaged polling-state table and polling-service repository have been deleted.
+- Milestone 2 foreground polling is deployed. Milestone 3 live feedback is implemented locally and awaits review and frontend deployment.
 - The first automatic Week 1 finalization remains pending until Sleeper advances to Week 2.
 - `VITE_API_URL` is required. Use the deployed stack's `ApiUrl` output locally and in Vercel; there is no source-code fallback.
 

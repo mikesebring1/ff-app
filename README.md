@@ -4,12 +4,12 @@ A mobile-first fantasy football PWA for a ten-team "vs everyone" league. Each te
 
 ## Architecture
 
-- React 19, Vite, Tailwind CSS, shadcn/ui, TanStack Query, and Recharts
+- React 19, Vite, Tailwind CSS, shadcn/ui, TanStack Query, Motion, and Recharts
 - Sleeper API for league, roster, matchup, player, projection, and NFL-state data
 - AWS CDK infrastructure with API Gateway, Lambda, EventBridge, and three retained DynamoDB tables
 - Vercel for frontend hosting
 
-The weekly screen calculates live standings in the browser from Sleeper data. A visible, online client polls only the current week's matchup scores every ten seconds; roster, user, projection, and player metadata use longer caches. An hourly week-finalizer Lambda detects every completed, unprocessed regular-season week, writes canonical weekly and overall standings, and runs playoff projections. If the app was offline or undeployed, the next run catches up all missing weeks. The API exposes only read endpoints for league context and persisted standings.
+The weekly screen calculates live standings in the browser from Sleeper data. A visible, online client polls only the current week's matchup scores every ten seconds; roster, user, projection, and player metadata use longer caches. Successive live player-score increases flash green, decreases flash red, and leaderboard rows animate when their rank changes. Initial, cached, historical, and context-switch data establish a baseline without flashing, and reduced-motion preferences disable the visual effects. An hourly week-finalizer Lambda detects every completed, unprocessed regular-season week, writes canonical weekly and overall standings, and runs playoff projections. If the app was offline or undeployed, the next run catches up all missing weeks. The API exposes only read endpoints for league context and persisted standings.
 
 ## Local development
 

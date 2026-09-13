@@ -94,7 +94,7 @@ export function buildWeeklyStandings({ matchups, rosters, users, players, projec
           || 'Unknown Player',
         position: playerData?.position || 'FLEX',
         team: playerData?.team || '',
-        points: matchup.players_points?.[playerId] || 0,
+        points: matchup.players_points?.[playerId] ?? 0,
         projected_points: projections?.[playerId] || 0,
         is_starter: roster.starters?.includes(playerId) || false,
       }

@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import { LayoutGroup, motion as Motion, MotionConfig, useReducedMotion } from 'motion/react'
 import {
   Accordion,
   AccordionContent,
@@ -17,21 +18,40 @@ import { ChevronDown } from "lucide-react"
 import WeeklyStandingsChart from './WeeklyStandingsChart'
 import { useAvailableWeeks, useWeeklyStandings } from '../hooks/useWeeklyStandings'
 import { useCurrentWeek } from '../hooks/useCurrentWeek'
-import { useTeamScoreAnimation } from '../hooks/useScoreAnimation'
+import { useLivePlayerScoreChanges } from '../hooks/useScoreAnimation'
+import { buildRankLayout, playerScoreKey } from '../lib/live-score-changes'
 import { resolveSelectedWeek } from '../lib/week-selection'
 
 
-// Component for animated team total scores
-function AnimatedTeamScore({ points, projectedTotal }) {
-  const { animationClasses } = useTeamScoreAnimation(points)
-  
+function TeamScore({ points, projectedTotal }) {
   return (
-    <div className={`font-medium ${animationClasses} rounded px-1`}>
+    <div className="font-medium rounded px-1">
       <span className="text-primary">{points}</span>
       {projectedTotal && parseFloat(projectedTotal) > 0 && (
         <span className="text-xs text-gray-400 ml-1">/{projectedTotal}</span>
       )}
     </div>
+  )
+}
+
+function PlayerScore({ change, points, placeholderForZero = false }) {
+  const score = Number(points)
+  const displayScore = placeholderForZero && score === 0
+    ? '--'
+    : score.toFixed(2)
+  const flashClass = change?.direction === 'increase'
+    ? 'player-score-flash-increase'
+    : change?.direction === 'decrease'
+      ? 'player-score-flash-decrease'
+      : ''
+
+  return (
+    <span
+      key={change?.sequence ?? 'stable'}
+      className={`${flashClass} inline-block rounded px-1 -mr-1`}
+    >
+      {displayScore}
+    </span>
   )
 }
 
@@ -50,7 +70,31 @@ export default function WeeklyStandings({ selectedTeam, onTeamSelect }) {
     error: standingsError,
     dataUpdatedAt,
     isLivePolling,
+    matchupIdentity,
+    matchupSnapshot,
   } = useWeeklyStandings(selectedWeek)
+  const reducedMotion = useReducedMotion()
+  const playerScoreChanges = useLivePlayerScoreChanges({
+    animationsEnabled: !reducedMotion,
+    identity: matchupIdentity,
+    isLive: isLivePolling,
+    matchups: matchupSnapshot,
+    snapshotToken: dataUpdatedAt,
+  })
+  const rankLayout = useMemo(
+    () => buildRankLayout(weeklyStandings),
+    [weeklyStandings],
+  )
+  const rankLayoutByRoster = useMemo(
+    () => new Map(rankLayout.map((entry) => [entry.rosterId, entry])),
+    [rankLayout],
+  )
+  const getPlayerScoreChange = (rosterId, playerId) => {
+    if (!isLivePolling) return undefined
+
+    const change = playerScoreChanges.get(playerScoreKey(rosterId, playerId))
+    return change?.identity === matchupIdentity ? change : undefined
+  }
 
   // Set default week when available weeks are loaded
   useEffect(() => {
@@ -148,105 +192,125 @@ export default function WeeklyStandings({ selectedTeam, onTeamSelect }) {
           )}
           
           {!loading && !error && (
-            <Accordion 
-              type="multiple" 
-              className="w-full" 
-              value={openItems} 
-              onValueChange={setOpenItems}
-            >
-              {weeklyStandings.map((team) => {
-                const highlight = getHighlightStyle(team.teamName)
-                return (
-                <AccordionItem key={team.id} value={team.id} className={highlight.className || ""}>
-                  <AccordionTrigger className="px-2 sm:px-4 hover:no-underline [&>svg]:hidden">
-                    <div className="flex items-center justify-between w-full">
-                      <div className="flex items-center gap-2">
-                        <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${openItems.includes(team.id) ? 'rotate-180' : ''}`} />
-                        <div>
-                          <div className="font-medium">
-                            {team.rank} - {team.teamName}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            {team.record}
-                          </div>
-                        </div>
-                      </div>
-                      <AnimatedTeamScore 
-                        points={team.points}
-                        projectedTotal={team.projectedTotal}
-                      />
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="px-2 sm:px-4 pb-2 sm:pb-4">
-                      <div className="bg-muted rounded-lg p-2 sm:p-4">
-                        {team.starters && team.starters.length > 0 ? (
-                          <>
-                            {/* Starters List */}
-                            <div className="space-y-1 border-b pb-2 mb-2">
-                              {team.starters.map((player, index) => (
-                                <div key={index} className="py-1">
-                                  <div className="flex justify-between items-center text-xs sm:text-sm">
-                                    <div className="flex items-center">
-                                      <span className="font-medium text-muted-foreground w-8 sm:w-10 inline-block">
-                                        {player.lineup_position}
-                                      </span>
-                                      <span>{player.player}</span>
-                                    </div>
-                                    <div className="font-medium">
-                                      {parseFloat(player.points || 0).toFixed(2)}
-                                    </div>
+            <MotionConfig reducedMotion="user">
+              <LayoutGroup id={`weekly-standings-${matchupIdentity ?? selectedWeek}`}>
+                <Accordion
+                  key={matchupIdentity ?? selectedWeek}
+                  type="multiple"
+                  className="w-full"
+                  value={openItems}
+                  onValueChange={setOpenItems}
+                >
+                  {weeklyStandings.map((team) => {
+                    const highlight = getHighlightStyle(team.teamName)
+                    const rankEntry = rankLayoutByRoster.get(String(team.id))
+                    return (
+                      <Motion.div
+                        key={team.id}
+                        layout={isLivePolling ? 'position' : false}
+                        layoutDependency={`${rankEntry?.rank}:${rankEntry?.order}`}
+                        initial={false}
+                        transition={{ type: 'spring', stiffness: 420, damping: 36 }}
+                      >
+                        <AccordionItem value={team.id} className={highlight.className || ""}>
+                          <AccordionTrigger className="px-2 sm:px-4 hover:no-underline [&>svg]:hidden">
+                            <div className="flex items-center justify-between w-full">
+                              <div className="flex items-center gap-2">
+                                <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${openItems.includes(team.id) ? 'rotate-180' : ''}`} />
+                                <div>
+                                  <div className="font-medium">
+                                    {team.rank} - {team.teamName}
                                   </div>
-                                  <div className="flex justify-between items-center text-xs sm:text-sm text-muted-foreground ml-8 sm:ml-10">
-                                    <span>{player.team}</span>
-                                    <span>{parseFloat(player.projected_points || 0).toFixed(1)}</span>
+                                  <div className="text-sm text-muted-foreground">
+                                    {team.record}
                                   </div>
                                 </div>
-                              ))}
-                            </div>
-                            
-                            {/* Bench Players List */}
-                            {team.benchPlayers && team.benchPlayers.length > 0 && (
-                              <div className="space-y-1">
-                                {team.benchPlayers.map((player, index) => {
-                                  const actualPoints = parseFloat(player.points || 0)
-                                  const hasPlayed = actualPoints > 0
-                                  
-                                  return (
-                                    <div key={`bench-${index}`} className="py-1 opacity-75">
-                                      <div className="flex justify-between items-center text-xs sm:text-sm">
-                                        <div className="flex items-center">
-                                          <span className="font-medium text-muted-foreground w-8 sm:w-10 inline-block">
-                                            {player.position}
-                                          </span>
-                                          <span>{player.player}</span>
-                                        </div>
-                                        <div className="text-muted-foreground">
-                                          {hasPlayed ? actualPoints.toFixed(2) : '--'}
-                                        </div>
-                                      </div>
-                                      <div className="flex justify-between items-center text-xs sm:text-sm text-muted-foreground ml-8 sm:ml-10">
-                                        <span>{player.team}</span>
-                                        <span>{parseFloat(player.projected_points || 0).toFixed(1)}</span>
-                                      </div>
-                                    </div>
-                                  )
-                                })}
                               </div>
-                            )}
-                          </>
-                        ) : (
-                          <div className="text-center text-muted-foreground text-sm py-4">
-                            Roster data not available
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-                )
-              })}
-            </Accordion>
+                              <TeamScore
+                                points={team.points}
+                                projectedTotal={team.projectedTotal}
+                              />
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <div className="px-2 sm:px-4 pb-2 sm:pb-4">
+                              <div className="bg-muted rounded-lg p-2 sm:p-4">
+                                {team.starters && team.starters.length > 0 ? (
+                                  <>
+                                    {/* Starters List */}
+                                    <div className="space-y-1 border-b pb-2 mb-2">
+                                      {team.starters.map((player) => (
+                                        <div key={player.player_id} className="py-1">
+                                          <div className="flex justify-between items-center text-xs sm:text-sm">
+                                            <div className="flex items-center">
+                                              <span className="font-medium text-muted-foreground w-8 sm:w-10 inline-block">
+                                                {player.lineup_position}
+                                              </span>
+                                              <span>{player.player}</span>
+                                            </div>
+                                            <div className="font-medium">
+                                              <PlayerScore
+                                                points={player.points}
+                                                change={getPlayerScoreChange(team.id, player.player_id)}
+                                              />
+                                            </div>
+                                          </div>
+                                          <div className="flex justify-between items-center text-xs sm:text-sm text-muted-foreground ml-8 sm:ml-10">
+                                            <span>{player.team}</span>
+                                            <span>{parseFloat(player.projected_points || 0).toFixed(1)}</span>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+
+                                    {/* Bench Players List */}
+                                    {team.benchPlayers && team.benchPlayers.length > 0 && (
+                                      <div className="space-y-1">
+                                        {team.benchPlayers.map((player) => {
+                                          const actualPoints = parseFloat(player.points || 0)
+
+                                          return (
+                                            <div key={player.player_id} className="py-1 opacity-75">
+                                              <div className="flex justify-between items-center text-xs sm:text-sm">
+                                                <div className="flex items-center">
+                                                  <span className="font-medium text-muted-foreground w-8 sm:w-10 inline-block">
+                                                    {player.position}
+                                                  </span>
+                                                  <span>{player.player}</span>
+                                                </div>
+                                                <div className="text-muted-foreground">
+                                                  <PlayerScore
+                                                    points={actualPoints}
+                                                    placeholderForZero
+                                                    change={getPlayerScoreChange(team.id, player.player_id)}
+                                                  />
+                                                </div>
+                                              </div>
+                                              <div className="flex justify-between items-center text-xs sm:text-sm text-muted-foreground ml-8 sm:ml-10">
+                                                <span>{player.team}</span>
+                                                <span>{parseFloat(player.projected_points || 0).toFixed(1)}</span>
+                                              </div>
+                                            </div>
+                                          )
+                                        })}
+                                      </div>
+                                    )}
+                                  </>
+                                ) : (
+                                  <div className="text-center text-muted-foreground text-sm py-4">
+                                    Roster data not available
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Motion.div>
+                    )
+                  })}
+                </Accordion>
+              </LayoutGroup>
+            </MotionConfig>
           )}
         </CardContent>
       </Card>

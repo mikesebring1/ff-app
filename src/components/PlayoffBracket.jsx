@@ -2,16 +2,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Trophy, Medal } from "lucide-react"
 import { useWeeklyStandings } from '../hooks/useWeeklyStandings'
 import { useOverallStandings } from '../hooks/useOverallStandings'
-import { useTeamScoreAnimation } from '../hooks/useScoreAnimation'
 import { useSleeperPlayers } from '../hooks/useSleeper'
 
 
-// Component for animated team total scores in playoffs
-function AnimatedPlayoffTeamScore({ points }) {
-  const { animationClasses } = useTeamScoreAnimation(points)
-  
+function PlayoffTeamScore({ points }) {
   return (
-    <div className={`text-xl font-bold mt-1 ${animationClasses} rounded px-2`}>
+    <div className="text-xl font-bold mt-1 rounded px-2">
       {points.toFixed(2)}
     </div>
   )
@@ -316,7 +312,7 @@ function FinalsMatch({ match, title, icon, highlight1, highlight2, week17Complet
           <div className={`font-semibold text-sm ${showChampion && match.winner === match.team1.name ? 'text-yellow-600 dark:text-yellow-500' : ''}`}>
             {match.team1.name}
           </div>
-          <AnimatedPlayoffTeamScore 
+          <PlayoffTeamScore
             points={match.team1.points}
           />
           <div className="text-xs text-gray-400">
@@ -338,7 +334,7 @@ function FinalsMatch({ match, title, icon, highlight1, highlight2, week17Complet
           <div className={`font-semibold text-sm ${showChampion && match.winner === match.team2.name ? 'text-yellow-600 dark:text-yellow-500' : ''}`}>
             {match.team2.name}
           </div>
-          <AnimatedPlayoffTeamScore 
+          <PlayoffTeamScore
             points={match.team2.points}
           />
           <div className="text-xs text-gray-400">

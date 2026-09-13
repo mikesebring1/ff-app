@@ -72,5 +72,7 @@ export function useWeeklyStandings(week) {
     error: requiredQueries.find((query) => query.error)?.error ?? null,
     dataUpdatedAt: matchupsQuery.dataUpdatedAt,
     isLivePolling: matchupsQuery.isLivePolling,
+    matchupIdentity: matchupsQuery.matchupIdentity,
+    matchupSnapshot: matchupsQuery.data,
   }
 }

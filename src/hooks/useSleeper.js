@@ -173,7 +173,13 @@ export const useSleeperMatchups = (week) => {
     subscriptionRef.current?.update(pollingEnabled)
   }, [pollingEnabled])
 
-  return { ...query, isLivePolling: pollingEnabled }
+  return {
+    ...query,
+    isLivePolling: pollingEnabled,
+    matchupIdentity: leagueId && selectedWeek
+      ? `${leagueId}:${selectedWeek}`
+      : null,
+  }
 }
 
 export const useSleeperProjections = ({ week } = {}) => {

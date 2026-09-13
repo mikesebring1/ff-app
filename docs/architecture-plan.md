@@ -65,7 +65,7 @@ Only the matchup endpoint receives the live interval. Suggested cache behavior f
 | Compact league player map | On load, cached for one day |
 | Full NFL player directory | Backend refresh once per week |
 
-The browser retains the previous matchup result by `roster_id` and `player_id`. A higher score flashes green; a lower score caused by a correction flashes red. Stable roster IDs allow Motion layout animation when a team's rank changes. Reduced-motion preferences must be respected. Vibration remains an optional feature-detected enhancement and is not part of the primary feedback.
+The browser retains the previous matchup result by `roster_id` and `player_id`. A higher score flashes green; any lower score flashes red, whether caused by lost yards, a turnover, or a later stat adjustment. Stable roster IDs allow Motion layout animation when a team's rank changes. Initial, cached, historical, and context-switch data reset the comparison baseline without flashing. Reduced-motion preferences suppress flashing and movement. Vibration is deferred and is not part of this milestone.
 
 ### League context and player metadata
 
@@ -185,7 +185,7 @@ Status: deployed. The unmanaged legacy table and ECR repository are also removed
 
 ### Milestone 2: efficient foreground polling
 
-Status: implemented locally, pending review and frontend deployment.
+Status: deployed.
 
 1. Extract the frontend standings calculation into a pure module.
 2. Add shared scoring fixtures and make the JavaScript and Python calculators agree.
@@ -203,11 +203,14 @@ Acceptance criteria:
 
 ### Milestone 3: live visual feedback
 
+Status: implemented locally, pending independent review and frontend deployment.
+
 1. Compare successive matchup snapshots by roster and player ID.
-2. Extend the existing score animation hook to handle player and team changes reliably.
-3. Flash increases green and corrections red.
-4. Add Motion layout animation for rank changes.
+2. Reset the baseline on initial load, cached restore, polling pause, and league/week changes.
+3. Flash individual player increases green and all individual player decreases red.
+4. Add Motion layout animation for rank changes using stable roster keys.
 5. Respect reduced-motion preferences and avoid replaying animations on initial load.
+6. Leave phone vibration out of the milestone.
 
 ### Milestone 4: compact league player map
 

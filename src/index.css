@@ -72,6 +72,10 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --score-flash-increase-background: color-mix(in oklab, var(--color-green-400) 45%, transparent);
+  --score-flash-increase-foreground: var(--color-green-800);
+  --score-flash-decrease-background: color-mix(in oklab, var(--color-red-400) 45%, transparent);
+  --score-flash-decrease-foreground: var(--color-red-800);
 }
 
 .dark {
@@ -106,6 +110,10 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --score-flash-increase-background: color-mix(in oklab, var(--color-green-700) 55%, transparent);
+  --score-flash-increase-foreground: var(--color-green-200);
+  --score-flash-decrease-background: color-mix(in oklab, var(--color-red-700) 55%, transparent);
+  --score-flash-decrease-foreground: var(--color-red-200);
 }
 
 @layer base {
@@ -114,5 +122,46 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@keyframes player-score-flash-increase {
+  0% {
+    background-color: var(--score-flash-increase-background);
+    color: var(--score-flash-increase-foreground);
+    transform: scale(1.08);
+  }
+  100% {
+    background-color: transparent;
+    color: inherit;
+    transform: scale(1);
+  }
+}
+
+@keyframes player-score-flash-decrease {
+  0% {
+    background-color: var(--score-flash-decrease-background);
+    color: var(--score-flash-decrease-foreground);
+    transform: scale(1.08);
+  }
+  100% {
+    background-color: transparent;
+    color: inherit;
+    transform: scale(1);
+  }
+}
+
+.player-score-flash-increase {
+  animation: player-score-flash-increase 1.1s ease-out;
+}
+
+.player-score-flash-decrease {
+  animation: player-score-flash-decrease 1.1s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-score-flash-increase,
+  .player-score-flash-decrease {
+    animation: none;
   }
 }
