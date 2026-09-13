@@ -204,7 +204,7 @@ Acceptance criteria:
 
 ### Milestone 3: live visual feedback
 
-Status: implemented locally, pending independent review and frontend deployment.
+Status: deployed.
 
 1. Compare successive matchup snapshots by roster and player ID.
 2. Reset the baseline on initial load, cached restore, polling pause, and league/week changes.
@@ -215,7 +215,7 @@ Status: implemented locally, pending independent review and frontend deployment.
 
 ### Milestone 4: compact league player map
 
-Status: implemented locally, pending independent review and infrastructure/frontend deployment.
+Status: deployed.
 
 1. Refresh the full Sleeper player directory in the backend once weekly.
 2. Filter it to active players assigned to NFL teams, exclude kickers, and retain only UI fields.
@@ -225,13 +225,14 @@ Status: implemented locally, pending independent review and infrastructure/front
 
 ### Milestone 5: production validation
 
-Status: infrastructure import, API configuration, and legacy-resource removal are complete. The first automatic Week 1 finalization remains pending until Sleeper advances to Week 2.
+Status: infrastructure import, API configuration, legacy-resource removal, and Milestones 2 through 4 are deployed. The settings polish is implemented locally and awaits frontend deployment. The first automatic Week 1 finalization remains pending until Sleeper advances to Week 2.
 
 1. Import the retained tables and deploy the replacement stack.
 2. Configure Vercel with the new API output and redeploy the PWA.
 3. Verify automatic catch-up and one live weekly transition.
 4. Remove the two unmanaged legacy resources after verification.
 5. Deploy the Milestone 4 infrastructure, let the hourly finalizer populate `/players`, verify the endpoint, and then deploy the frontend.
+6. Add Light, Dark, and System theme preferences and populate “View as” from current Sleeper roster names.
 
 ## Deferred options
 

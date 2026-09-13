@@ -1,3 +1,5 @@
+import { buildRosterTeamNames } from './team-names.js'
+
 /**
  * Calculate one week's canonical "vs everyone" results.
  *
@@ -63,24 +65,13 @@ function formatRecordValue(value) {
  * coupling the canonical calculation to React or network response state.
  */
 export function buildWeeklyStandings({ matchups, rosters, users, players, projections }) {
-  const userNames = Object.fromEntries(
-    (users ?? []).map((user) => [
-      user.user_id,
-      user.metadata?.team_name || user.display_name || user.username,
-    ]),
-  )
   const rosterById = new Map(
     (rosters ?? []).map((roster) => [String(roster.roster_id), roster]),
   )
   const matchupById = new Map(
     (matchups ?? []).map((matchup) => [String(matchup.roster_id), matchup]),
   )
-  const teamNames = Object.fromEntries(
-    (rosters ?? []).map((roster) => [
-      String(roster.roster_id),
-      userNames[roster.owner_id] || `Team ${roster.roster_id}`,
-    ]),
-  )
+  const teamNames = buildRosterTeamNames(rosters, users)
 
   return calculateVsEveryone(matchups, teamNames).map((result) => {
     const roster = rosterById.get(result.roster_id) ?? {}

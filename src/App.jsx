@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useSyncExternalStore } from 'react'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -6,6 +6,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -13,23 +15,41 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
-import { Moon, Sun, Menu } from "lucide-react"
+import { Monitor, Moon, Sun, Menu } from "lucide-react"
 import WeeklyStandings from './components/WeeklyStandings'
 import OverallStandings from './components/OverallStandings'
 import PlayoffBracket from './components/PlayoffBracket'
 import { useTeams } from './hooks/useTeams'
 import { useNetworkStatus } from './hooks/useNetworkStatus'
 import { useCurrentWeek } from './hooks/useCurrentWeek'
+import { normalizeThemePreference, resolveDarkMode } from './lib/theme-preference'
+
+const SYSTEM_THEME_QUERY = '(prefers-color-scheme: dark)'
+
+function getSystemDarkMode() {
+  return typeof window !== 'undefined'
+    && window.matchMedia(SYSTEM_THEME_QUERY).matches
+}
+
+function subscribeToSystemDarkMode(onChange) {
+  if (typeof window === 'undefined') return () => {}
+
+  const mediaQuery = window.matchMedia(SYSTEM_THEME_QUERY)
+  mediaQuery.addEventListener('change', onChange)
+  return () => mediaQuery.removeEventListener('change', onChange)
+}
 
 function App() {
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('theme') === 'dark' || 
-             (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)
-    }
-    return false
+  const [themePreference, setThemePreference] = useState(() => {
+    if (typeof window === 'undefined') return 'system'
+    return normalizeThemePreference(localStorage.getItem('theme'))
   })
+  const systemPrefersDark = useSyncExternalStore(
+    subscribeToSystemDarkMode,
+    getSystemDarkMode,
+    () => false,
+  )
+  const isDarkMode = resolveDarkMode(themePreference, systemPrefersDark)
 
   const [selectedTeam, setSelectedTeam] = useState('All Teams')
 
@@ -60,17 +80,12 @@ function App() {
     }
   }, [teams, teamsLoading, teamsError, selectedTeam])
 
-  // Handle dark mode
+  // Apply the resolved theme while retaining the user's three-state preference.
   useEffect(() => {
     const root = window.document.documentElement
-    if (isDarkMode) {
-      root.classList.add('dark')
-      localStorage.setItem('theme', 'dark')
-    } else {
-      root.classList.remove('dark')
-      localStorage.setItem('theme', 'light')
-    }
-  }, [isDarkMode])
+    root.classList.toggle('dark', isDarkMode)
+    localStorage.setItem('theme', themePreference)
+  }, [isDarkMode, themePreference])
 
   // PWA update handling
   useEffect(() => {
@@ -114,26 +129,37 @@ function App() {
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Settings</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <div className="flex items-center justify-between px-2 py-1.5 text-sm cursor-default">
-              <div className="flex items-center">
-                {isDarkMode ? (
-                  <>
-                    <Moon className="mr-2 h-4 w-4" />
-                    <span>Dark mode</span>
-                  </>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                {themePreference === 'system' ? (
+                  <Monitor className="h-4 w-4" />
+                ) : isDarkMode ? (
+                  <Moon className="h-4 w-4" />
                 ) : (
-                  <>
-                    <Sun className="mr-2 h-4 w-4" />
-                    <span>Light mode</span>
-                  </>
+                  <Sun className="h-4 w-4" />
                 )}
-              </div>
-              <Switch
-                checked={isDarkMode}
-                onCheckedChange={setIsDarkMode}
-                className="ml-2"
-              />
-            </div>
+                <span>Theme</span>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuRadioGroup
+                  value={themePreference}
+                  onValueChange={(value) => setThemePreference(normalizeThemePreference(value))}
+                >
+                  <DropdownMenuRadioItem value="system" className="gap-2">
+                    <Monitor className="h-4 w-4" />
+                    System
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="light" className="gap-2">
+                    <Sun className="h-4 w-4" />
+                    Light
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="dark" className="gap-2">
+                    <Moon className="h-4 w-4" />
+                    Dark
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
             <DropdownMenuSeparator />
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>
