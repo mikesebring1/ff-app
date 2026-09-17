@@ -6,7 +6,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
@@ -206,7 +205,7 @@ function App() {
 
             <nav
               aria-label="Primary navigation"
-              className={`fixed left-1/2 z-40 grid w-[calc(100%-2rem)] max-w-md -translate-x-1/2 gap-1 rounded-2xl border bg-card/90 p-1.5 shadow-lg backdrop-blur-xl ${showPlayoffs ? 'grid-cols-4' : 'grid-cols-3'}`}
+              className={`fixed left-1/2 z-40 grid w-[calc(100%-2rem)] max-w-md -translate-x-1/2 gap-1 overflow-hidden rounded-full border bg-card/90 p-1.5 shadow-lg backdrop-blur-xl ${showPlayoffs ? 'grid-cols-4' : 'grid-cols-3'}`}
               style={{ bottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
             >
               <TabsList
@@ -249,8 +248,6 @@ function App() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent side="top" align="end" sideOffset={12}>
-                  <DropdownMenuLabel>Settings</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
                   <DropdownMenuSub>
                     <DropdownMenuSubTrigger>
                       {themePreference === 'system' ? (
