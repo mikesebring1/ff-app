@@ -214,14 +214,14 @@ function App() {
               >
                 <TabsTrigger
                   value="weekly"
-                  className="min-h-14 flex-col gap-1 px-2 py-1.5 text-[0.6875rem] leading-none data-[state=active]:bg-accent data-[state=active]:text-accent-foreground"
+                  className="min-h-14 flex-col gap-1 rounded-full px-2 py-1.5 text-[0.6875rem] leading-none hover:bg-accent hover:text-accent-foreground data-[state=active]:bg-accent data-[state=active]:text-accent-foreground"
                 >
                   <TrendingUpDown className="h-5 w-5" aria-hidden="true" />
                   <span>Weekly</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="overall"
-                  className="min-h-14 flex-col gap-1 px-2 py-1.5 text-[0.6875rem] leading-none data-[state=active]:bg-accent data-[state=active]:text-accent-foreground"
+                  className="min-h-14 flex-col gap-1 rounded-full px-2 py-1.5 text-[0.6875rem] leading-none hover:bg-accent hover:text-accent-foreground data-[state=active]:bg-accent data-[state=active]:text-accent-foreground"
                 >
                   <Medal className="h-5 w-5" aria-hidden="true" />
                   <span>Overall</span>
@@ -229,7 +229,7 @@ function App() {
                 {showPlayoffs && (
                   <TabsTrigger
                     value="playoffs"
-                    className="min-h-14 flex-col gap-1 px-2 py-1.5 text-[0.6875rem] leading-none data-[state=active]:bg-accent data-[state=active]:text-accent-foreground"
+                    className="min-h-14 flex-col gap-1 rounded-full px-2 py-1.5 text-[0.6875rem] leading-none hover:bg-accent hover:text-accent-foreground data-[state=active]:bg-accent data-[state=active]:text-accent-foreground"
                   >
                     <Trophy className="h-5 w-5" aria-hidden="true" />
                     <span>Playoffs</span>
@@ -241,7 +241,7 @@ function App() {
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="outline"
-                    className="min-h-14 h-auto flex-col gap-1 border-0 bg-transparent px-2 py-1.5 text-[0.6875rem] leading-none text-muted-foreground shadow-none data-[state=open]:bg-accent data-[state=open]:text-accent-foreground [&_svg]:size-5"
+                    className="min-h-14 h-auto flex-col gap-1 rounded-full border-0 bg-transparent px-2 py-1.5 text-[0.6875rem] leading-none text-muted-foreground shadow-none data-[state=open]:bg-accent data-[state=open]:text-accent-foreground data-[state=open]:shadow [&_svg]:size-5"
                   >
                     <Settings className="h-5 w-5" aria-hidden="true" />
                     <span>Settings</span>
