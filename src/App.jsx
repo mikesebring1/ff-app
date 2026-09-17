@@ -16,7 +16,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
-import { Monitor, Moon, Sun, Menu } from "lucide-react"
+import {
+  Medal,
+  Monitor,
+  Moon,
+  Settings,
+  Sun,
+  TrendingUpDown,
+  Trophy,
+} from "lucide-react"
 import WeeklyStandings from './components/WeeklyStandings'
 import OverallStandings from './components/OverallStandings'
 import PlayoffBracket from './components/PlayoffBracket'
@@ -75,6 +83,7 @@ function App() {
   const isDarkMode = resolveDarkMode(themePreference, systemPrefersDark)
 
   const [selectedRosterId, setSelectedRosterId] = useState(null)
+  const [activeView, setActiveView] = useState(null)
 
   const { teams, loading: teamsLoading, error: teamsError } = useTeams()
 
@@ -120,85 +129,16 @@ function App() {
     }
   }
 
+  const showPlayoffs = currentWeek >= 16
+  const resolvedActiveView = activeView === 'playoffs' && !showPlayoffs
+    ? 'weekly'
+    : activeView ?? (showPlayoffs ? 'playoffs' : 'weekly')
+  const leagueReady = !leagueContextLoading && !leagueContextError && Boolean(currentWeek)
+
   return (
     <>
       <div className="min-h-screen bg-background">
-      <div className="absolute top-8 right-8">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="icon" aria-label="Open settings">
-              <Menu className="h-4 w-4" aria-hidden="true" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Settings</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                {themePreference === 'system' ? (
-                  <Monitor className="h-4 w-4" aria-hidden="true" />
-                ) : isDarkMode ? (
-                  <Moon className="h-4 w-4" aria-hidden="true" />
-                ) : (
-                  <Sun className="h-4 w-4" aria-hidden="true" />
-                )}
-                <span>Theme</span>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                <DropdownMenuRadioGroup
-                  value={themePreference}
-                  onValueChange={(value) => setThemePreference(normalizeThemePreference(value))}
-                >
-                  <DropdownMenuRadioItem value="system" className="gap-2">
-                    <Monitor className="h-4 w-4" aria-hidden="true" />
-                    System
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="light" className="gap-2">
-                    <Sun className="h-4 w-4" aria-hidden="true" />
-                    Light
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="dark" className="gap-2">
-                    <Moon className="h-4 w-4" aria-hidden="true" />
-                    Dark
-                  </DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuSeparator />
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <span>View as</span>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                {teamsLoading ? (
-                  <DropdownMenuItem disabled className="text-muted-foreground">
-                    Loading teams...
-                  </DropdownMenuItem>
-                ) : teamsError ? (
-                  <DropdownMenuItem disabled className="text-muted-foreground">
-                    Error loading teams
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuRadioGroup
-                    value={teamSelectionValue(selectedRosterId)}
-                    onValueChange={(value) => {
-                      setSelectedRosterId(rosterIdFromTeamSelection(value))
-                    }}
-                  >
-                    {teams.map((team) => (
-                      <DropdownMenuRadioItem key={team.value} value={team.value}>
-                        {team.label}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                )}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
-      <div className="max-w-4xl mx-auto pt-16 pb-8 px-4 sm:pt-8">
+      <div className="max-w-4xl mx-auto px-4 pt-8 pb-[calc(7rem+env(safe-area-inset-bottom))]">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold tracking-tight">Madtown's Finest Standings</h1>
           {leagueContextLoading && (
@@ -236,25 +176,18 @@ function App() {
           )}
         </div>
         
-        {!leagueContextLoading && !leagueContextError && currentWeek && (
-          <Tabs defaultValue={currentWeek >= 16 ? "playoffs" : "weekly"} className="w-full">
-            <TabsList className={`grid w-full ${currentWeek >= 16 ? 'grid-cols-3' : 'grid-cols-2'}`}>
-              {currentWeek >= 16 && (
-                <TabsTrigger value="playoffs">Playoffs</TabsTrigger>
-              )}
-              <TabsTrigger value="weekly">Weekly</TabsTrigger>
-              <TabsTrigger value="overall">Overall</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="weekly" className="mt-6">
+        <Tabs value={resolvedActiveView} onValueChange={setActiveView} className="w-full">
+            <TabsContent value="weekly" className="mt-0">
+              {leagueReady && (
               <WeeklyStandings
                 selectedRosterId={selectedRosterId}
                 onRosterSelect={setSelectedRosterId}
               />
+              )}
             </TabsContent>
 
-            {currentWeek >= 16 && (
-              <TabsContent value="playoffs" className="mt-6">
+            {showPlayoffs && (
+              <TabsContent value="playoffs" className="mt-0">
                 <PlayoffBracket
                   week={currentWeek.toString()}
                   selectedRosterId={selectedRosterId}
@@ -262,14 +195,127 @@ function App() {
               </TabsContent>
             )}
 
-            <TabsContent value="overall" className="mt-6">
+            <TabsContent value="overall" className="mt-0">
+              {leagueReady && (
               <OverallStandings
                 selectedRosterId={selectedRosterId}
                 onRosterSelect={setSelectedRosterId}
               />
+              )}
             </TabsContent>
+
+            <nav
+              aria-label="Primary navigation"
+              className={`fixed left-1/2 z-40 grid w-[calc(100%-2rem)] max-w-md -translate-x-1/2 gap-1 rounded-2xl border bg-card/90 p-1.5 shadow-lg backdrop-blur-xl ${showPlayoffs ? 'grid-cols-4' : 'grid-cols-3'}`}
+              style={{ bottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
+            >
+              <TabsList
+                aria-label="Standings views"
+                className={`grid h-auto w-full gap-1 bg-transparent p-0 ${showPlayoffs ? 'col-span-3 grid-cols-3' : 'col-span-2 grid-cols-2'}`}
+              >
+                <TabsTrigger
+                  value="weekly"
+                  className="min-h-14 flex-col gap-1 px-2 py-1.5 text-[0.6875rem] leading-none data-[state=active]:bg-accent data-[state=active]:text-accent-foreground"
+                >
+                  <TrendingUpDown className="h-5 w-5" aria-hidden="true" />
+                  <span>Weekly</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="overall"
+                  className="min-h-14 flex-col gap-1 px-2 py-1.5 text-[0.6875rem] leading-none data-[state=active]:bg-accent data-[state=active]:text-accent-foreground"
+                >
+                  <Medal className="h-5 w-5" aria-hidden="true" />
+                  <span>Overall</span>
+                </TabsTrigger>
+                {showPlayoffs && (
+                  <TabsTrigger
+                    value="playoffs"
+                    className="min-h-14 flex-col gap-1 px-2 py-1.5 text-[0.6875rem] leading-none data-[state=active]:bg-accent data-[state=active]:text-accent-foreground"
+                  >
+                    <Trophy className="h-5 w-5" aria-hidden="true" />
+                    <span>Playoffs</span>
+                  </TabsTrigger>
+                )}
+              </TabsList>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="min-h-14 h-auto flex-col gap-1 border-0 bg-transparent px-2 py-1.5 text-[0.6875rem] leading-none text-muted-foreground shadow-none data-[state=open]:bg-accent data-[state=open]:text-accent-foreground [&_svg]:size-5"
+                  >
+                    <Settings className="h-5 w-5" aria-hidden="true" />
+                    <span>Settings</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent side="top" align="end" sideOffset={12}>
+                  <DropdownMenuLabel>Settings</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      {themePreference === 'system' ? (
+                        <Monitor className="h-4 w-4" aria-hidden="true" />
+                      ) : isDarkMode ? (
+                        <Moon className="h-4 w-4" aria-hidden="true" />
+                      ) : (
+                        <Sun className="h-4 w-4" aria-hidden="true" />
+                      )}
+                      <span>Theme</span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      <DropdownMenuRadioGroup
+                        value={themePreference}
+                        onValueChange={(value) => setThemePreference(normalizeThemePreference(value))}
+                      >
+                        <DropdownMenuRadioItem value="system" className="gap-2">
+                          <Monitor className="h-4 w-4" aria-hidden="true" />
+                          System
+                        </DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="light" className="gap-2">
+                          <Sun className="h-4 w-4" aria-hidden="true" />
+                          Light
+                        </DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="dark" className="gap-2">
+                          <Moon className="h-4 w-4" aria-hidden="true" />
+                          Dark
+                        </DropdownMenuRadioItem>
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <span>View as</span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      {teamsLoading ? (
+                        <DropdownMenuItem disabled className="text-muted-foreground">
+                          Loading teams...
+                        </DropdownMenuItem>
+                      ) : teamsError ? (
+                        <DropdownMenuItem disabled className="text-muted-foreground">
+                          Error loading teams
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuRadioGroup
+                          value={teamSelectionValue(selectedRosterId)}
+                          onValueChange={(value) => {
+                            setSelectedRosterId(rosterIdFromTeamSelection(value))
+                          }}
+                        >
+                          {teams.map((team) => (
+                            <DropdownMenuRadioItem key={team.value} value={team.value}>
+                              {team.label}
+                            </DropdownMenuRadioItem>
+                          ))}
+                        </DropdownMenuRadioGroup>
+                      )}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </nav>
           </Tabs>
-        )}
       </div>
     </div>
     <ReactQueryDevtools initialIsOpen={false} />
