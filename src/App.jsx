@@ -89,7 +89,7 @@ function App() {
   const { isOnline, isSlowConnection } = useNetworkStatus()
 
   const {
-    currentWeek,
+    displayWeek,
     isLoading: leagueContextLoading,
     error: leagueContextError
   } = useCurrentWeek()
@@ -128,11 +128,11 @@ function App() {
     }
   }
 
-  const showPlayoffs = currentWeek >= 16
+  const showPlayoffs = displayWeek >= 16
   const resolvedActiveView = activeView === 'playoffs' && !showPlayoffs
     ? 'weekly'
     : activeView ?? (showPlayoffs ? 'playoffs' : 'weekly')
-  const leagueReady = !leagueContextLoading && !leagueContextError && Boolean(currentWeek)
+  const leagueReady = !leagueContextLoading && !leagueContextError && Boolean(displayWeek)
 
   return (
     <>
@@ -188,7 +188,7 @@ function App() {
             {showPlayoffs && (
               <TabsContent value="playoffs" className="mt-0">
                 <PlayoffBracket
-                  week={currentWeek.toString()}
+                  week={displayWeek.toString()}
                   selectedRosterId={selectedRosterId}
                 />
               </TabsContent>

@@ -24,7 +24,7 @@ npx cdk diff
 
 ## Active architecture
 
-The frontend is a React/Vite PWA hosted on Vercel. Weekly standings are assembled in the browser from Sleeper rosters, users, projections, and matchups plus a compact player map from the read API. Only the visible, online current-week matchup query repeats, at a ten-second interval; metadata uses longer caches. Successive live player-score changes flash green or red by direction, and Motion animates rank changes. Initial or restored data establishes a fresh baseline, and reduced-motion preferences disable these effects. Overall standings and both charts read persisted data through API Gateway.
+The frontend is a React/Vite PWA hosted on Vercel. Weekly standings are assembled in the browser from Sleeper rosters, users, projections, and matchups plus a compact player map from the read API. Sleeper's `display_week` controls the default user-facing week, while its active `week` alone controls whether the visible, online matchup query repeats at a ten-second interval; metadata uses longer caches. The shared league-context query refreshes every five minutes while the app is online, visible, and focused, with one immediate refresh after resuming. Before a selected week at or after the display week records a nonzero team or player score, an unranked crystal-ball view shows original projections and the completed performance-trend history. Successive live player-score changes flash green or red by direction, and Motion animates rank changes after scoring begins. Initial or restored data establishes a fresh baseline, and reduced-motion preferences disable these effects. Overall standings and both charts read persisted data through API Gateway.
 
 The CDK stack in `infra/lib/infrastructure-stack.ts` defines:
 
@@ -49,7 +49,7 @@ There is no ECS, Fargate, ECR, VPC, polling-state table, admin key, or public mu
 
 ## Important current constraints
 
-- Active season, week, and league ID come from the public league-context endpoint and shared Sleeper resolver.
+- Active season, active week, display week, and league ID come from the public league-context endpoint and shared Sleeper resolver.
 - Known Monte Carlo math issues remain outside the automated-finalization change.
 - The replacement AWS stack is deployed, and the unmanaged polling-state table and polling-service repository have been deleted.
 - Milestones 2 through 4 are deployed. Milestone 5 implementation is complete; its system theme preference and current Sleeper team names await frontend deployment.

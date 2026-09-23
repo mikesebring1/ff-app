@@ -3,19 +3,34 @@ function validWeek(week) {
   return Number.isInteger(normalized) && normalized > 0 ? normalized : null
 }
 
-export function resolveSelectedWeek({ selectedWeek, currentWeek, availableWeeks }) {
+export function isPregameEligibleWeek({ selectedWeek, displayWeek }) {
+  const selected = validWeek(selectedWeek)
+  const displayed = validWeek(displayWeek)
+  return Boolean(selected && displayed && selected >= displayed)
+}
+
+export function resolveSelectedWeek({
+  selectedWeek,
+  displayWeek,
+  availableWeeks,
+  selectionIsManual = false,
+}) {
   const weeks = (availableWeeks ?? [])
     .map(validWeek)
     .filter((week) => week !== null)
   const selected = validWeek(selectedWeek)
 
-  if (selected && weeks.includes(selected)) {
+  if (selectionIsManual && selected && weeks.includes(selected)) {
     return String(selected)
   }
 
-  const current = validWeek(currentWeek)
-  if (current && weeks.includes(current)) {
-    return String(current)
+  const displayed = validWeek(displayWeek)
+  if (displayed && weeks.includes(displayed)) {
+    return String(displayed)
+  }
+
+  if (selected && weeks.includes(selected)) {
+    return String(selected)
   }
 
   return weeks.length > 0 ? String(Math.max(...weeks)) : ''

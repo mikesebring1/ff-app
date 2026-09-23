@@ -16,11 +16,12 @@ import {
 } from "@/components/ui/select"
 import { ChevronDown } from "lucide-react"
 import WeeklyStandingsChart from './WeeklyStandingsChart'
+import PregameCrystalBall from './PregameCrystalBall'
 import { useAvailableWeeks, useWeeklyStandings } from '../hooks/useWeeklyStandings'
 import { useCurrentWeek } from '../hooks/useCurrentWeek'
 import { useLivePlayerScoreChanges } from '../hooks/useScoreAnimation'
 import { buildRankLayout, playerScoreKey } from '../lib/live-score-changes'
-import { resolveSelectedWeek } from '../lib/week-selection'
+import { isPregameEligibleWeek, resolveSelectedWeek } from '../lib/week-selection'
 
 
 function TeamScore({ points, projectedTotal }) {
@@ -57,10 +58,14 @@ function PlayerScore({ change, points, placeholderForZero = false }) {
 
 export default function WeeklyStandings({ selectedRosterId, onRosterSelect }) {
   const [openItems, setOpenItems] = useState([])
-  const [selectedWeek, setSelectedWeek] = useState("")
+  const [weekSelection, setWeekSelection] = useState({
+    isManual: false,
+    week: '',
+  })
+  const selectedWeek = weekSelection.week
   
-  // Get current week info
-  const { currentWeek: calculatedCurrentWeek } = useCurrentWeek()
+  const { displayWeek } = useCurrentWeek()
+  const isPregameEligible = isPregameEligibleWeek({ selectedWeek, displayWeek })
   
   // Use React Query hooks
   const { data: availableWeeks = [], isLoading: weeksLoading, error: weeksError } = useAvailableWeeks()
@@ -72,12 +77,17 @@ export default function WeeklyStandings({ selectedRosterId, onRosterSelect }) {
     isLivePolling,
     matchupIdentity,
     matchupSnapshot,
-  } = useWeeklyStandings(selectedWeek)
+    pregameTeams,
+    weekStarted,
+  } = useWeeklyStandings(selectedWeek, {
+    suppressUnstartedStandings: isPregameEligible,
+  })
   const reducedMotion = useReducedMotion()
+  const showPregame = isPregameEligible && !weekStarted
   const playerScoreChanges = useLivePlayerScoreChanges({
     animationsEnabled: !reducedMotion,
     identity: matchupIdentity,
-    isLive: isLivePolling,
+    isLive: isLivePolling && weekStarted,
     matchups: matchupSnapshot,
     snapshotToken: dataUpdatedAt,
   })
@@ -96,14 +106,21 @@ export default function WeeklyStandings({ selectedRosterId, onRosterSelect }) {
     return change?.identity === matchupIdentity ? change : undefined
   }
 
-  // Set default week when available weeks are loaded
+  // Follow Sleeper's display week until the user deliberately picks a week.
   useEffect(() => {
-    setSelectedWeek((currentSelection) => resolveSelectedWeek({
-      selectedWeek: currentSelection,
-      currentWeek: calculatedCurrentWeek,
-      availableWeeks,
-    }))
-  }, [availableWeeks, calculatedCurrentWeek])
+    setWeekSelection((currentSelection) => {
+      const nextWeek = resolveSelectedWeek({
+        selectedWeek: currentSelection.week,
+        displayWeek,
+        availableWeeks,
+        selectionIsManual: currentSelection.isManual,
+      })
+
+      return nextWeek === currentSelection.week
+        ? currentSelection
+        : { ...currentSelection, week: nextWeek }
+    })
+  }, [availableWeeks, displayWeek])
 
   
   const loading = weeksLoading || standingsLoading
@@ -126,7 +143,11 @@ export default function WeeklyStandings({ selectedRosterId, onRosterSelect }) {
         <CardContent className="pt-3 sm:pt-6">
           {/* Week Selector */}
           <div className="flex justify-center mb-4">
-            <Select value={selectedWeek} onValueChange={setSelectedWeek} disabled={loading || availableWeeks.length === 0}>
+            <Select
+              value={selectedWeek}
+              onValueChange={(week) => setWeekSelection({ isManual: true, week })}
+              disabled={loading || availableWeeks.length === 0}
+            >
               <SelectTrigger className="w-[140px]">
                 <SelectValue placeholder={loading ? "Loading..." : availableWeeks.length === 0 ? "No weeks" : "Select week"} />
               </SelectTrigger>
@@ -158,15 +179,24 @@ export default function WeeklyStandings({ selectedRosterId, onRosterSelect }) {
             </div>
           )}
 
-          {/* Column Headers */}
-          <div className="flex justify-between items-center py-2 border-b font-medium text-sm text-muted-foreground">
-            <div className="flex items-center gap-2 pl-10">
-              <span>Team</span>
+          {!loading && !error && showPregame ? (
+            <PregameCrystalBall
+              onRosterSelect={onRosterSelect}
+              reducedMotion={reducedMotion}
+              selectedRosterId={selectedRosterId}
+              teams={pregameTeams}
+              week={selectedWeek}
+            />
+          ) : (
+            <div className="flex justify-between items-center py-2 border-b font-medium text-sm text-muted-foreground">
+              <div className="flex items-center gap-2 pl-10">
+                <span>Team</span>
+              </div>
+              <div className="pr-4">
+                <span>Points</span>
+              </div>
             </div>
-            <div className="pr-4">
-              <span>Points</span>
-            </div>
-          </div>
+          )}
 
           {loading && (
             <div className="text-center py-8 text-muted-foreground">
@@ -191,7 +221,7 @@ export default function WeeklyStandings({ selectedRosterId, onRosterSelect }) {
             </div>
           )}
           
-          {!loading && !error && (
+          {!loading && !error && !showPregame && (
             <MotionConfig reducedMotion="user">
               <LayoutGroup id={`weekly-standings-${matchupIdentity ?? selectedWeek}`}>
                 <Accordion

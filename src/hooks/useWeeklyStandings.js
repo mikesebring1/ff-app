@@ -8,6 +8,7 @@ import {
 } from './useSleeper'
 import { usePlayerMap } from './usePlayerMap'
 import { buildWeeklyStandings } from '../lib/vs-everyone'
+import { buildPregameTeams, hasWeekStarted } from '../lib/weekly-view'
 
 export function useAvailableWeeks() {
   return useQuery({
@@ -18,22 +19,28 @@ export function useAvailableWeeks() {
   })
 }
 
-export function useWeeklyStandings(week) {
+export function useWeeklyStandings(week, { suppressUnstartedStandings = false } = {}) {
   const matchupsQuery = useSleeperMatchups(week)
   const rostersQuery = useSleeperRosters()
   const usersQuery = useSleeperUsers()
   const playersQuery = usePlayerMap()
   const projectionsQuery = useSleeperProjections({ week })
 
-  const isReady = Boolean(
+  const pregameReady = Boolean(
     week &&
     matchupsQuery.data &&
     rostersQuery.data &&
-    usersQuery.data &&
-    playersQuery.data,
+    usersQuery.data,
   )
+  const weekStarted = useMemo(
+    () => hasWeekStarted(matchupsQuery.data),
+    [matchupsQuery.data],
+  )
+  const standingsReady = Boolean(pregameReady && playersQuery.data)
+  const needsStandings = !suppressUnstartedStandings || weekStarted
+  const isReady = needsStandings ? standingsReady : pregameReady
   const standings = useMemo(() => {
-    if (!isReady) return []
+    if (!standingsReady || (suppressUnstartedStandings && !weekStarted)) return []
 
     return buildWeeklyStandings({
       matchups: matchupsQuery.data,
@@ -43,13 +50,24 @@ export function useWeeklyStandings(week) {
       projections: projectionsQuery.data?.projections ?? {},
     })
   }, [
-    isReady,
     matchupsQuery.data,
     playersQuery.data,
     projectionsQuery.data,
     rostersQuery.data,
+    standingsReady,
     usersQuery.data,
+    suppressUnstartedStandings,
+    weekStarted,
   ])
+  const pregameTeams = useMemo(() => {
+    if (!rostersQuery.data || !usersQuery.data) return []
+
+    return buildPregameTeams({
+      rosters: rostersQuery.data,
+      users: usersQuery.data,
+      projections: projectionsQuery.data?.projections,
+    })
+  }, [projectionsQuery.data, rostersQuery.data, usersQuery.data])
 
   const queries = [
     matchupsQuery,
@@ -62,11 +80,13 @@ export function useWeeklyStandings(week) {
     matchupsQuery,
     rostersQuery,
     usersQuery,
-    playersQuery,
+    ...(needsStandings ? [playersQuery] : []),
   ]
 
   return {
     data: standings,
+    pregameTeams,
+    weekStarted,
     isLoading: !isReady && queries.some((query) => query.isPending),
     isFetching: queries.some((query) => query.isFetching),
     error: requiredQueries.find((query) => query.error)?.error ?? null,

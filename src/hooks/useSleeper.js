@@ -1,4 +1,4 @@
-import { useEffect, useRef, useSyncExternalStore } from 'react'
+import { useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLeagueContext } from './useLeagueContext'
 import {
@@ -9,43 +9,9 @@ import {
   sleeperMatchupQueryKey,
 } from '../lib/matchup-polling'
 import { recordSleeperRequest } from '../lib/sleeper-request-counter'
+import { useBrowserPollingState } from './useBrowserPollingState'
 
 const SLEEPER_API_BASE = 'https://api.sleeper.app/v1'
-
-function browserPollingSnapshot() {
-  const isVisible = typeof document === 'undefined' || document.visibilityState === 'visible'
-  const isOnline = typeof navigator === 'undefined' || navigator.onLine
-  return (isVisible ? 1 : 0) | (isOnline ? 2 : 0)
-}
-
-function subscribeToBrowserPollingState(onChange) {
-  if (typeof window === 'undefined' || typeof document === 'undefined') {
-    return () => {}
-  }
-
-  document.addEventListener('visibilitychange', onChange)
-  window.addEventListener('online', onChange)
-  window.addEventListener('offline', onChange)
-
-  return () => {
-    document.removeEventListener('visibilitychange', onChange)
-    window.removeEventListener('online', onChange)
-    window.removeEventListener('offline', onChange)
-  }
-}
-
-function useBrowserPollingState() {
-  const snapshot = useSyncExternalStore(
-    subscribeToBrowserPollingState,
-    browserPollingSnapshot,
-    () => 3,
-  )
-
-  return {
-    visibilityState: snapshot & 1 ? 'visible' : 'hidden',
-    isOnline: Boolean(snapshot & 2),
-  }
-}
 
 async function fetchSleeperJson(path, {
   timeout = 10_000,
@@ -120,11 +86,11 @@ export const useSleeperMatchups = (week) => {
   const { visibilityState, isOnline } = useBrowserPollingState()
   const leagueId = leagueContext?.league_id
   const selectedWeek = normalizeWeek(week)
-  const currentWeek = normalizeWeek(leagueContext?.week)
+  const activeWeek = normalizeWeek(leagueContext?.week)
   const queryKey = sleeperMatchupQueryKey(leagueId, selectedWeek)
   const pollingEnabled = Boolean(leagueId) && isMatchupPollingEligible({
     selectedWeek,
-    currentWeek,
+    currentWeek: activeWeek,
     visibilityState,
     isOnline,
   })
@@ -142,7 +108,7 @@ export const useSleeperMatchups = (week) => {
       },
     ),
     enabled: Boolean(leagueId && selectedWeek && isOnline),
-    staleTime: selectedWeek === currentWeek
+    staleTime: selectedWeek === activeWeek
       ? MATCHUP_POLL_INTERVAL_MS
       : 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
