@@ -28,17 +28,9 @@ export default function PregameCrystalBall({
   week,
 }) {
   return (
-    <section className="pb-2 pt-1 text-center" aria-labelledby="pregame-heading">
-      <h2 id="pregame-heading" className="text-lg font-semibold">
-        Week {week} is still unwritten
-      </h2>
-      <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-        Standings and records will appear as soon as scoring begins.
-      </p>
-
+    <section className="pb-2 pt-1 text-center" aria-label={`Week ${week} pregame projections`}>
       <div
-        className="relative left-1/2 mt-5 aspect-square w-[calc(100%+2rem)] max-w-md -translate-x-1/2 overflow-hidden rounded-full border border-primary/15 bg-[radial-gradient(circle_at_48%_42%,color-mix(in_oklab,var(--color-primary)_13%,transparent),transparent_43%),radial-gradient(circle_at_50%_55%,var(--color-muted),var(--color-card)_70%)] shadow-[inset_0_0_3rem_color-mix(in_oklab,var(--color-primary)_10%,transparent),0_1.25rem_3rem_-2rem_color-mix(in_oklab,var(--color-primary)_35%,transparent)]"
-        aria-label={`Week ${week} pregame projections`}
+        className="relative left-1/2 mt-1 aspect-square w-[calc(100%+2rem)] max-w-md -translate-x-1/2 overflow-hidden rounded-full border border-primary/15 bg-[radial-gradient(circle_at_48%_42%,color-mix(in_oklab,var(--color-primary)_13%,transparent),transparent_43%),radial-gradient(circle_at_50%_55%,var(--color-muted),var(--color-card)_70%)] shadow-[inset_0_0_3rem_color-mix(in_oklab,var(--color-primary)_10%,transparent),0_1.25rem_3rem_-2rem_color-mix(in_oklab,var(--color-primary)_35%,transparent)]"
       >
         <div className="pointer-events-none absolute inset-[12%] rounded-full border border-primary/10" />
         <div className="pointer-events-none absolute inset-[30%] rounded-full bg-primary/5 blur-xl" />
@@ -83,9 +75,6 @@ export default function PregameCrystalBall({
           )
         })}
       </div>
-      <p className="mt-3 text-xs text-muted-foreground">
-        Projections are a preview, not a ranking.
-      </p>
     </section>
   )
 }
