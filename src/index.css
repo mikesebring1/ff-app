@@ -161,7 +161,58 @@
   animation: player-score-flash-decrease 1.1s ease-out;
 }
 
+@property --ink-radius {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@keyframes invisible-ink-shimmer {
+  0%,
+  100% {
+    background-position: 0 0, 4px 4px;
+  }
+  50% {
+    background-position: 4px -4px, 0 8px;
+  }
+}
+
+.invisible-ink-veil {
+  --ink-radius: 0px;
+  --ink-x: 50%;
+  --ink-y: 50%;
+  background-color: color-mix(in oklab, var(--card) 82%, transparent);
+  background-image:
+    radial-gradient(circle, color-mix(in oklab, var(--foreground) 52%, transparent) 0 1px, transparent 1.5px),
+    radial-gradient(circle, color-mix(in oklab, var(--primary) 44%, transparent) 0 1px, transparent 1.5px);
+  background-size: 8px 8px, 8px 8px;
+  -webkit-backdrop-filter: blur(2.5px) saturate(0.7);
+  backdrop-filter: blur(2.5px) saturate(0.7);
+  -webkit-mask-image: radial-gradient(
+    circle var(--ink-radius) at var(--ink-x) var(--ink-y),
+    transparent 96%,
+    black 100%
+  );
+  mask-image: radial-gradient(
+    circle var(--ink-radius) at var(--ink-x) var(--ink-y),
+    transparent 96%,
+    black 100%
+  );
+  animation: invisible-ink-shimmer 2.8s steps(7) infinite;
+  transition: --ink-radius 700ms ease-out;
+}
+
+.invisible-ink-veil[data-revealing="true"] {
+  --ink-radius: clamp(5rem, 26vw, 7rem);
+  transition-duration: 180ms;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .invisible-ink-veil {
+    animation: none;
+    transition: none;
+  }
+
   .player-score-flash-increase,
   .player-score-flash-decrease {
     animation: none;

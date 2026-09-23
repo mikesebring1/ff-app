@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { motion as Motion } from 'motion/react'
 
 const ORBIT_POSITIONS = [
@@ -27,18 +28,72 @@ export default function PregameCrystalBall({
   teams,
   week,
 }) {
-  return (
-    <section className="pb-2 pt-1 text-center" aria-labelledby="pregame-heading">
-      <h2 id="pregame-heading" className="text-lg font-semibold">
-        Week {week} is still unwritten
-      </h2>
-      <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-        Standings and records will appear as soon as scoring begins.
-      </p>
+  const ballRef = useRef(null)
+  const veilRef = useRef(null)
+  const hideTimeoutRef = useRef(null)
+  const touchActiveRef = useRef(false)
 
+  useEffect(() => () => clearTimeout(hideTimeoutRef.current), [])
+
+  const revealAt = (clientX, clientY) => {
+    const ball = ballRef.current
+    const veil = veilRef.current
+    if (!ball || !veil) return
+
+    const bounds = ball.getBoundingClientRect()
+    const x = Math.min(Math.max(clientX - bounds.left, 0), bounds.width)
+    const y = Math.min(Math.max(clientY - bounds.top, 0), bounds.height)
+
+    clearTimeout(hideTimeoutRef.current)
+    veil.style.setProperty('--ink-x', `${x}px`)
+    veil.style.setProperty('--ink-y', `${y}px`)
+    veil.dataset.revealing = 'true'
+  }
+
+  const revealAtPosition = (position) => {
+    const ball = ballRef.current
+    if (!ball) return
+
+    const bounds = ball.getBoundingClientRect()
+    revealAt(
+      bounds.left + (bounds.width * parseFloat(position.left) / 100),
+      bounds.top + (bounds.height * parseFloat(position.top) / 100),
+    )
+  }
+
+  const concealAfter = (delay = 650) => {
+    clearTimeout(hideTimeoutRef.current)
+    hideTimeoutRef.current = setTimeout(() => {
+      if (veilRef.current) veilRef.current.dataset.revealing = 'false'
+    }, delay)
+  }
+
+  const handlePointerDown = (event) => {
+    touchActiveRef.current = event.pointerType !== 'mouse'
+    revealAt(event.clientX, event.clientY)
+  }
+
+  const handlePointerMove = (event) => {
+    if (event.pointerType === 'mouse' || touchActiveRef.current) {
+      revealAt(event.clientX, event.clientY)
+    }
+  }
+
+  const handlePointerEnd = () => {
+    touchActiveRef.current = false
+    concealAfter()
+  }
+
+  return (
+    <section className="pb-2 pt-1 text-center" aria-label={`Week ${week} pregame projections`}>
       <div
-        className="relative left-1/2 mt-5 aspect-square w-[calc(100%+2rem)] max-w-md -translate-x-1/2 overflow-hidden rounded-full border border-primary/15 bg-[radial-gradient(circle_at_48%_42%,color-mix(in_oklab,var(--color-primary)_13%,transparent),transparent_43%),radial-gradient(circle_at_50%_55%,var(--color-muted),var(--color-card)_70%)] shadow-[inset_0_0_3rem_color-mix(in_oklab,var(--color-primary)_10%,transparent),0_1.25rem_3rem_-2rem_color-mix(in_oklab,var(--color-primary)_35%,transparent)]"
-        aria-label={`Week ${week} pregame projections`}
+        ref={ballRef}
+        className="relative left-1/2 mt-1 aspect-square w-[calc(100%+2rem)] max-w-md -translate-x-1/2 touch-pan-y overflow-hidden rounded-full border border-primary/15 bg-[radial-gradient(circle_at_48%_42%,color-mix(in_oklab,var(--color-primary)_13%,transparent),transparent_43%),radial-gradient(circle_at_50%_55%,var(--color-muted),var(--color-card)_70%)] shadow-[inset_0_0_3rem_color-mix(in_oklab,var(--color-primary)_10%,transparent),0_1.25rem_3rem_-2rem_color-mix(in_oklab,var(--color-primary)_35%,transparent)]"
+        onPointerCancel={handlePointerEnd}
+        onPointerDown={handlePointerDown}
+        onPointerLeave={handlePointerEnd}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerEnd}
       >
         <div className="pointer-events-none absolute inset-[12%] rounded-full border border-primary/10" />
         <div className="pointer-events-none absolute inset-[30%] rounded-full bg-primary/5 blur-xl" />
@@ -68,7 +123,9 @@ export default function PregameCrystalBall({
                   ease: 'easeInOut',
                   repeat: Infinity,
                 }}
+                onBlur={() => concealAfter(250)}
                 onClick={() => onRosterSelect?.(isSelected ? null : team.rosterId)}
+                onFocus={() => revealAtPosition(position)}
               >
                 <span className="line-clamp-2 block text-[0.6875rem] font-semibold leading-tight sm:text-xs">
                   {team.teamName}
@@ -82,10 +139,14 @@ export default function PregameCrystalBall({
             </div>
           )
         })}
+
+        <div
+          ref={veilRef}
+          aria-hidden="true"
+          className="invisible-ink-veil pointer-events-none absolute inset-0 z-20"
+          data-revealing="false"
+        />
       </div>
-      <p className="mt-3 text-xs text-muted-foreground">
-        Projections are a preview, not a ranking.
-      </p>
     </section>
   )
 }
