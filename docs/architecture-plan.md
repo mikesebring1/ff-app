@@ -139,7 +139,7 @@ The JavaScript and Python standings calculators must share fixture files coverin
 
 The template contains exactly three retained DynamoDB tables, the read API, the finalizer, the Monte Carlo Lambda, shared Lambda layers, and one hourly EventBridge rule. Job state shares `ff-league-data`. There are no container, VPC, polling-state, or public mutation resources.
 
-API Gateway sends both `GET` and `OPTIONS` requests through the read Lambda. The Lambda echoes `Access-Control-Allow-Origin` only for the production site, stable project aliases, and deployment hosts within the app's Vercel team namespace. This supports changing preview deployment names without granting every `vercel.app` site browser access. CORS does not authenticate direct HTTP clients.
+API Gateway sends both `GET` and `OPTIONS` requests through the read Lambda. The Lambda echoes `Access-Control-Allow-Origin` only for local development at `http://localhost:5173`, the production site, stable project aliases, and deployment hosts within the app's Vercel team namespace. This supports changing preview deployment names without granting every `vercel.app` site browser access. CORS does not authenticate direct HTTP clients.
 
 The API stage applies a shared five-request-per-second rate limit with a burst capacity of 100 requests. The burst supports concurrent app startup and the chart's historical-week reads; the lower sustained rate limits abuse of the public endpoints. Live matchup polling calls Sleeper directly, so it is unaffected by this throttle.
 

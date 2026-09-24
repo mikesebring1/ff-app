@@ -10,8 +10,9 @@ from ff_utils.dynamodb import get_cors_headers  # noqa: E402
 
 
 class CorsHeadersTests(unittest.TestCase):
-    def test_allows_production_and_assigned_domains(self):
+    def test_allows_local_development_production_and_assigned_domains(self):
         for origin in (
+            "http://localhost:5173",
             "https://madtownsfinest.app",
             "https://ff-app-vert.vercel.app",
             "https://ff-app-mikes-projects-e5f6e59b.vercel.app",
@@ -32,6 +33,7 @@ class CorsHeadersTests(unittest.TestCase):
             "https://ff-preview-other-team.vercel.app",
             "https://ff-preview-mikes-projects-e5f6e59b.vercel.app.evil.example",
             "http://madtownsfinest.app",
+            "http://localhost:5174",
             None,
         ):
             self.assertNotIn("Access-Control-Allow-Origin", get_cors_headers(origin))

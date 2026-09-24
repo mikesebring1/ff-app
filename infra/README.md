@@ -51,7 +51,7 @@ There is intentionally no API Gateway route for recovery operations.
 
 ## Browser origins
 
-The read API returns CORS permission only for `https://madtownsfinest.app`, the stable `ff-app-vert.vercel.app` alias, and deployment domains belonging to the `mikes-projects-e5f6e59b.vercel.app` Vercel project namespace. The Lambda validates each request's exact `Origin` and echoes it when allowed because the CORS protocol does not support partial-host wildcards. Requests without an allowed browser origin can still reach the public read-only API, so CORS is a browser boundary rather than authentication.
+The read API returns CORS permission only for local development at `http://localhost:5173`, `https://madtownsfinest.app`, the stable `ff-app-vert.vercel.app` alias, and deployment domains belonging to the `mikes-projects-e5f6e59b.vercel.app` Vercel project namespace. The Lambda validates each request's exact `Origin` and echoes it when allowed because the CORS protocol does not support partial-host wildcards. Requests without an allowed browser origin can still reach the public read-only API, so CORS is a browser boundary rather than authentication.
 
 The API Gateway stage shares a five-request-per-second rate limit and a 100-request burst across all routes. The burst accommodates concurrent league app opens and the weekly-history chart, while the low sustained rate limits accidental or automated abuse. Live ten-second matchup polling goes directly from the browser to Sleeper and does not consume this allowance.
 

@@ -19,13 +19,13 @@ export default function OverallStandings({ selectedRosterId, onRosterSelect }) {
   return (
     <div>
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="px-2 pt-6 sm:px-6">
           {/* Column Headers */}
-          <div className="flex items-center py-2 border-b px-4 font-medium text-sm text-muted-foreground">
-            <div className="w-6 shrink-0">
+          <div className="grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center border-b px-2 py-2 text-sm font-medium text-muted-foreground sm:px-4">
+            <div>
               <span className="sr-only">Toilet Bowl status</span>
             </div>
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0">
               <span>Team</span>
             </div>
             <div className="flex gap-8">
@@ -62,9 +62,9 @@ export default function OverallStandings({ selectedRosterId, onRosterSelect }) {
               {overallStandings.map((team) => (
                 <div 
                   key={team.id}
-                  className={`flex items-center py-4 px-4 border-b last:border-b-0 ${getHighlightStyle(team.id)}`}
+                  className={`grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center border-b px-2 py-4 last:border-b-0 sm:px-4 ${getHighlightStyle(team.id)}`}
                 >
-                  <div className="flex w-6 shrink-0 items-center">
+                  <div className="flex items-center">
                     {toiletBowlQualifierIds.has(String(team.id)) && (
                       <span
                         role="img"
@@ -75,7 +75,7 @@ export default function OverallStandings({ selectedRosterId, onRosterSelect }) {
                       </span>
                     )}
                   </div>
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0">
                     <div>
                       <div className="text-sm font-medium">
                         {team.rank} - {team.teamName}
@@ -85,7 +85,7 @@ export default function OverallStandings({ selectedRosterId, onRosterSelect }) {
                       </div>
                     </div>
                   </div>
-                  <div className="flex shrink-0 gap-8 text-sm font-medium">
+                  <div className="flex gap-8 text-sm font-medium">
                     <span className="text-primary">{team.totalPoints}</span>
                     <span className="w-16 text-center">{team.playoffPct}</span>
                   </div>

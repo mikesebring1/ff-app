@@ -69,7 +69,7 @@ export default function BaseChart({
     return (
       <Card className="mt-6">
         <CardHeader>
-          <CardTitle>{title}</CardTitle>
+          <CardTitle className="text-center">{title}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className={`text-center py-8 ${error ? 'text-red-500' : 'text-muted-foreground'}`}>
@@ -84,7 +84,7 @@ export default function BaseChart({
   return (
     <Card className="mt-6">
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
+        <CardTitle className="text-center">{title}</CardTitle>
       </CardHeader>
       <CardContent>
         <ChartContainer config={buildChartConfig(teams)}>

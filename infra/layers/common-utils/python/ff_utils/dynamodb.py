@@ -9,6 +9,7 @@ from decimal import Decimal
 
 
 ALLOWED_CORS_ORIGINS = {
+    'http://localhost:5173',
     'https://madtownsfinest.app',
     'https://ff-app-vert.vercel.app',
     'https://ff-app-mikes-projects-e5f6e59b.vercel.app',
