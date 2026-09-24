@@ -90,6 +90,7 @@ function App() {
 
   const {
     displayWeek,
+    playoffWeekStart,
     isLoading: leagueContextLoading,
     error: leagueContextError
   } = useCurrentWeek()
@@ -128,7 +129,7 @@ function App() {
     }
   }
 
-  const showPlayoffs = displayWeek >= 16
+  const showPlayoffs = displayWeek >= playoffWeekStart
   const resolvedActiveView = activeView === 'playoffs' && !showPlayoffs
     ? 'weekly'
     : activeView ?? (showPlayoffs ? 'playoffs' : 'weekly')
@@ -188,8 +189,8 @@ function App() {
             {showPlayoffs && (
               <TabsContent value="playoffs" className="mt-0">
                 <PlayoffBracket
-                  week={displayWeek.toString()}
                   selectedRosterId={selectedRosterId}
+                  onRosterSelect={setSelectedRosterId}
                 />
               </TabsContent>
             )}

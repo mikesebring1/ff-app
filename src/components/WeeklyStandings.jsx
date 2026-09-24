@@ -17,11 +17,16 @@ import {
 import { ChevronDown } from "lucide-react"
 import WeeklyStandingsChart from './WeeklyStandingsChart'
 import PregameCrystalBall from './PregameCrystalBall'
+import PostseasonPreview from './PostseasonPreview'
 import { useAvailableWeeks, useWeeklyStandings } from '../hooks/useWeeklyStandings'
 import { useCurrentWeek } from '../hooks/useCurrentWeek'
 import { useLivePlayerScoreChanges } from '../hooks/useScoreAnimation'
 import { buildRankLayout, playerScoreKey } from '../lib/live-score-changes'
-import { isPregameEligibleWeek, resolveSelectedWeek } from '../lib/week-selection'
+import {
+  getPostseasonPreviewState,
+  isPregameEligibleWeek,
+  resolveSelectedWeek,
+} from '../lib/week-selection'
 
 
 function TeamScore({ points, projectedTotal }) {
@@ -64,7 +69,17 @@ export default function WeeklyStandings({ selectedRosterId, onRosterSelect }) {
   })
   const selectedWeek = weekSelection.week
   
-  const { displayWeek } = useCurrentWeek()
+  const { displayWeek, playoffWeekStart, postseasonFinalWeek } = useCurrentWeek()
+  const selectedWeekNumber = Number(selectedWeek)
+  const {
+    showPreview: showPostseasonPreview,
+    weeklyDataEnabled,
+  } = getPostseasonPreviewState({
+    selectedWeek: selectedWeekNumber,
+    displayWeek,
+    playoffWeekStart,
+    postseasonFinalWeek,
+  })
   const isPregameEligible = isPregameEligibleWeek({ selectedWeek, displayWeek })
   
   // Use React Query hooks
@@ -80,10 +95,11 @@ export default function WeeklyStandings({ selectedRosterId, onRosterSelect }) {
     pregameTeams,
     weekStarted,
   } = useWeeklyStandings(selectedWeek, {
+    enabled: weeklyDataEnabled,
     suppressUnstartedStandings: isPregameEligible,
   })
   const reducedMotion = useReducedMotion()
-  const showPregame = isPregameEligible && !weekStarted
+  const showPregame = !showPostseasonPreview && isPregameEligible && !weekStarted
   const playerScoreChanges = useLivePlayerScoreChanges({
     animationsEnabled: !reducedMotion,
     identity: matchupIdentity,
@@ -123,8 +139,8 @@ export default function WeeklyStandings({ selectedRosterId, onRosterSelect }) {
   }, [availableWeeks, displayWeek])
 
   
-  const loading = weeksLoading || standingsLoading
-  const error = weeksError || standingsError
+  const loading = weeksLoading || (!showPostseasonPreview && standingsLoading)
+  const error = weeksError || (!showPostseasonPreview && standingsError)
 
   // Highlight selected team with background
   const getHighlightStyle = (rosterId) => {
@@ -179,7 +195,14 @@ export default function WeeklyStandings({ selectedRosterId, onRosterSelect }) {
             </div>
           )}
 
-          {!loading && !error && showPregame ? (
+          {!loading && !error && showPostseasonPreview ? (
+            <PostseasonPreview
+              onRosterSelect={onRosterSelect}
+              selectedRosterId={selectedRosterId}
+              openingWeek={playoffWeekStart}
+              week={selectedWeekNumber}
+            />
+          ) : !loading && !error && showPregame ? (
             <PregameCrystalBall
               onRosterSelect={onRosterSelect}
               reducedMotion={reducedMotion}
@@ -187,7 +210,7 @@ export default function WeeklyStandings({ selectedRosterId, onRosterSelect }) {
               teams={pregameTeams}
               week={selectedWeek}
             />
-          ) : (
+          ) : !showPostseasonPreview ? (
             <div className="flex justify-between items-center py-2 border-b font-medium text-sm text-muted-foreground">
               <div className="flex items-center gap-2 pl-10">
                 <span>Team</span>
@@ -196,7 +219,7 @@ export default function WeeklyStandings({ selectedRosterId, onRosterSelect }) {
                 <span>Points</span>
               </div>
             </div>
-          )}
+          ) : null}
 
           {loading && (
             <div className="text-center py-8 text-muted-foreground">
@@ -221,7 +244,7 @@ export default function WeeklyStandings({ selectedRosterId, onRosterSelect }) {
             </div>
           )}
           
-          {!loading && !error && !showPregame && (
+          {!loading && !error && !showPregame && !showPostseasonPreview && (
             <MotionConfig reducedMotion="user">
               <LayoutGroup id={`weekly-standings-${matchupIdentity ?? selectedWeek}`}>
                 <Accordion

@@ -9,7 +9,36 @@ export function sleeperMatchupQueryKey(leagueId, week) {
   return ['sleeper-matchups', String(leagueId), normalizeWeek(week)]
 }
 
+export function isMatchupQueryEligible({
+  enabled = true,
+  leagueId,
+  selectedWeek,
+  isOnline,
+}) {
+  return Boolean(
+    enabled
+    && leagueId
+    && normalizeWeek(selectedWeek)
+    && isOnline,
+  )
+}
+
+export function isProjectionQueryEligible({
+  enabled = true,
+  season,
+  seasonType,
+  selectedWeek,
+}) {
+  return Boolean(
+    enabled
+    && season
+    && seasonType
+    && normalizeWeek(selectedWeek),
+  )
+}
+
 export function isMatchupPollingEligible({
+  enabled = true,
   selectedWeek,
   currentWeek,
   visibilityState,
@@ -18,6 +47,7 @@ export function isMatchupPollingEligible({
   const selected = normalizeWeek(selectedWeek)
   const current = normalizeWeek(currentWeek)
   return Boolean(
+    enabled &&
     selected &&
     current &&
     selected === current &&

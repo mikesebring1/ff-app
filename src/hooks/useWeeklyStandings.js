@@ -19,12 +19,15 @@ export function useAvailableWeeks() {
   })
 }
 
-export function useWeeklyStandings(week, { suppressUnstartedStandings = false } = {}) {
-  const matchupsQuery = useSleeperMatchups(week)
+export function useWeeklyStandings(week, {
+  enabled = true,
+  suppressUnstartedStandings = false,
+} = {}) {
+  const matchupsQuery = useSleeperMatchups(week, { enabled })
   const rostersQuery = useSleeperRosters()
   const usersQuery = useSleeperUsers()
   const playersQuery = usePlayerMap()
-  const projectionsQuery = useSleeperProjections({ week })
+  const projectionsQuery = useSleeperProjections({ week, enabled })
 
   const pregameReady = Boolean(
     week &&

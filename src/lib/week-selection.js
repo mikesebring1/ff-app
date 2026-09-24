@@ -9,6 +9,32 @@ export function isPregameEligibleWeek({ selectedWeek, displayWeek }) {
   return Boolean(selected && displayed && selected >= displayed)
 }
 
+export function getPostseasonPreviewState({
+  selectedWeek,
+  displayWeek,
+  playoffWeekStart,
+  postseasonFinalWeek,
+}) {
+  const selected = validWeek(selectedWeek)
+  const displayed = validWeek(displayWeek)
+  const opening = validWeek(playoffWeekStart)
+  const final = validWeek(postseasonFinalWeek)
+  const showPreview = Boolean(
+    selected
+    && displayed
+    && opening
+    && final
+    && displayed < opening
+    && selected >= opening
+    && selected <= final,
+  )
+
+  return {
+    showPreview,
+    weeklyDataEnabled: !showPreview,
+  }
+}
+
 export function resolveSelectedWeek({
   selectedWeek,
   displayWeek,

@@ -4,6 +4,8 @@ import { useLeagueContext } from './useLeagueContext'
 import {
   MATCHUP_POLL_INTERVAL_MS,
   isMatchupPollingEligible,
+  isMatchupQueryEligible,
+  isProjectionQueryEligible,
   matchupPollingCoordinator,
   normalizeWeek,
   sleeperMatchupQueryKey,
@@ -79,7 +81,7 @@ export const useSleeperUsers = () => {
   })
 }
 
-export const useSleeperMatchups = (week) => {
+export const useSleeperMatchups = (week, { enabled = true } = {}) => {
   const { data: leagueContext } = useLeagueContext()
   const queryClient = useQueryClient()
   const subscriptionRef = useRef(null)
@@ -88,7 +90,8 @@ export const useSleeperMatchups = (week) => {
   const selectedWeek = normalizeWeek(week)
   const activeWeek = normalizeWeek(leagueContext?.week)
   const queryKey = sleeperMatchupQueryKey(leagueId, selectedWeek)
-  const pollingEnabled = Boolean(leagueId) && isMatchupPollingEligible({
+  const pollingEnabled = isMatchupPollingEligible({
+    enabled: enabled && Boolean(leagueId),
     selectedWeek,
     currentWeek: activeWeek,
     visibilityState,
@@ -107,7 +110,12 @@ export const useSleeperMatchups = (week) => {
         queryKey: `${leagueId}:${selectedWeek}`,
       },
     ),
-    enabled: Boolean(leagueId && selectedWeek && isOnline),
+    enabled: isMatchupQueryEligible({
+      enabled,
+      leagueId,
+      selectedWeek,
+      isOnline,
+    }),
     staleTime: selectedWeek === activeWeek
       ? MATCHUP_POLL_INTERVAL_MS
       : 5 * 60 * 1000,
@@ -148,14 +156,19 @@ export const useSleeperMatchups = (week) => {
   }
 }
 
-export const useSleeperProjections = ({ week } = {}) => {
+export const useSleeperProjections = ({ week, enabled = true } = {}) => {
   const { data: leagueContext } = useLeagueContext()
   const season = leagueContext?.season
   const seasonType = leagueContext?.season_type
   const selectedWeek = normalizeWeek(week)
 
   return useQuery({
-    enabled: Boolean(selectedWeek && season && seasonType),
+    enabled: isProjectionQueryEligible({
+      enabled,
+      season,
+      seasonType,
+      selectedWeek,
+    }),
     queryKey: ['sleeper-projections', season, seasonType, selectedWeek],
     queryFn: async ({ signal }) => {
       const projections = await fetchSleeperJson(
