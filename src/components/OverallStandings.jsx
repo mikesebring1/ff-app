@@ -1,9 +1,11 @@
 import { Card, CardContent } from "@/components/ui/card"
 import OverallStandingsChart from './OverallStandingsChart'
 import { useOverallStandings } from '../hooks/useOverallStandings'
+import { findToiletBowlQualifierIds } from '../lib/toilet-bowl'
 
 export default function OverallStandings({ selectedRosterId, onRosterSelect }) {
   const { data: overallStandings = [], isLoading: loading, error } = useOverallStandings()
+  const toiletBowlQualifierIds = findToiletBowlQualifierIds(overallStandings)
 
   // Highlight selected team with background
   const getHighlightStyle = (rosterId) => {
@@ -19,11 +21,14 @@ export default function OverallStandings({ selectedRosterId, onRosterSelect }) {
       <Card>
         <CardContent className="pt-6">
           {/* Column Headers */}
-          <div className="flex justify-between items-center py-2 border-b font-medium text-sm text-muted-foreground">
-            <div className="flex items-center gap-2 pl-4">
+          <div className="flex items-center py-2 border-b px-4 font-medium text-sm text-muted-foreground">
+            <div className="w-6 shrink-0">
+              <span className="sr-only">Toilet Bowl status</span>
+            </div>
+            <div className="min-w-0 flex-1">
               <span>Team</span>
             </div>
-            <div className="flex gap-8 pr-4">
+            <div className="flex gap-8">
               <span>Points</span>
               <span>Playoff %</span>
             </div>
@@ -57,9 +62,20 @@ export default function OverallStandings({ selectedRosterId, onRosterSelect }) {
               {overallStandings.map((team) => (
                 <div 
                   key={team.id}
-                  className={`flex items-center justify-between py-4 px-4 border-b last:border-b-0 ${getHighlightStyle(team.id)}`}
+                  className={`flex items-center py-4 px-4 border-b last:border-b-0 ${getHighlightStyle(team.id)}`}
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex w-6 shrink-0 items-center">
+                    {toiletBowlQualifierIds.has(String(team.id)) && (
+                      <span
+                        role="img"
+                        aria-label="Currently qualifies for the Toilet Bowl"
+                        title="Currently qualifies for the Toilet Bowl"
+                      >
+                        🚽
+                      </span>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
                     <div>
                       <div className="text-sm font-medium">
                         {team.rank} - {team.teamName}
@@ -69,7 +85,7 @@ export default function OverallStandings({ selectedRosterId, onRosterSelect }) {
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-8 text-sm font-medium">
+                  <div className="flex shrink-0 gap-8 text-sm font-medium">
                     <span className="text-primary">{team.totalPoints}</span>
                     <span className="w-16 text-center">{team.playoffPct}</span>
                   </div>
