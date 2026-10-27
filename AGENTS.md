@@ -41,8 +41,9 @@ There is no ECS, Fargate, ECR, VPC, polling-state table, admin key, or public mu
 
 - The weekly frontend reads Sleeper directly and calculates the displayed live order and record.
 - JavaScript and Python weekly scoring share JSON fixtures and split tied positions into identical fractional records.
-- The hourly finalizer resolves the active league and processes every completed week without a completion marker.
+- The hourly finalizer resolves the active league, syncs Sleeper league metadata at least every seven days and whenever a week is finalized, and processes every completed week without a completion marker.
 - Finalization stores a raw matchup snapshot, recalculates canonical weekly and overall standings, runs Monte Carlo projections, and only then marks the week complete.
+- League syncs patch current Sleeper team names onto existing overall standings without changing records, points, earnings, or playoff percentages.
 - The finalizer refreshes a compact active non-kicker player map about once a week, including during Week 1, and the frontend reads it through `/players` with a one-day cache.
 - A conditional season-wide lease serializes finalizer runs, while per-week leases track completion and retries. Failed work remains retryable, and an IAM-authenticated direct Lambda invocation can force a completed week to reprocess.
 - Finalizer job records and league metadata live in `ff-league-data`; no separate state table is needed.

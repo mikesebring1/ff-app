@@ -212,7 +212,8 @@ export class InfrastructureStack extends cdk.Stack {
     overallStandingsTable.grant(
       weekFinalizerFunction,
       'dynamodb:GetItem',
-      'dynamodb:PutItem'
+      'dynamodb:PutItem',
+      'dynamodb:UpdateItem'
     );
     leagueDataTable.grant(
       weekFinalizerFunction,

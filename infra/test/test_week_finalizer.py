@@ -46,6 +46,13 @@ def context(week=5, season_type="regular", league_status="in_season"):
     }
 
 
+def cached_league_data():
+    return {
+        "roster_ids": {"1", "2"},
+        "team_names": {"1": "Team One", "2": "Team Two"},
+    }
+
+
 class WeekDetectionTests(unittest.TestCase):
     def test_regular_season_catches_up_every_week_before_current(self):
         self.assertEqual(
@@ -101,6 +108,7 @@ class IdempotencyTests(unittest.TestCase):
         with patch.object(week_finalizer, "acquire_run_lease", return_value=True), \
              patch.object(week_finalizer, "ensure_player_cache", return_value=False), \
              patch.object(week_finalizer, "acquire_week", return_value=False), \
+             patch.object(week_finalizer, "league_sync_is_fresh", return_value=True), \
              patch.object(week_finalizer, "release_run_lease") as release:
             result = week_finalizer.run_finalization(
                 {}, context(3), tables, Mock(), Mock(), "idle-attempt"
@@ -134,7 +142,9 @@ class IdempotencyTests(unittest.TestCase):
 
         common_patches = (
             patch.object(week_finalizer, "acquire_week", return_value=True),
-            patch.object(week_finalizer, "cache_league_data", return_value={"1", "2"}),
+            patch.object(
+                week_finalizer, "cache_league_data", return_value=cached_league_data()
+            ),
             patch.object(week_finalizer, "fetch_sleeper_data", return_value=matchups),
             patch.object(week_finalizer, "store_week_matchups"),
         )
@@ -157,7 +167,9 @@ class IdempotencyTests(unittest.TestCase):
 
         with patch.object(week_finalizer, "acquire_week", return_value=True), \
              patch.object(week_finalizer, "ensure_player_cache", return_value=False), \
-             patch.object(week_finalizer, "cache_league_data", return_value={"1", "2"}), \
+             patch.object(
+                 week_finalizer, "cache_league_data", return_value=cached_league_data()
+             ), \
              patch.object(week_finalizer, "fetch_sleeper_data", return_value=matchups), \
              patch.object(week_finalizer, "store_week_matchups"), \
              patch.object(week_finalizer, "invoke_playoff_projection"), \
@@ -182,7 +194,9 @@ class IdempotencyTests(unittest.TestCase):
         acquire = Mock(return_value=True)
         with patch.object(week_finalizer, "acquire_week", acquire), \
              patch.object(week_finalizer, "ensure_player_cache", return_value=False), \
-             patch.object(week_finalizer, "cache_league_data", return_value={"1", "2"}), \
+             patch.object(
+                 week_finalizer, "cache_league_data", return_value=cached_league_data()
+             ), \
              patch.object(week_finalizer, "fetch_sleeper_data", return_value=[{"roster_id": 1}, {"roster_id": 2}]), \
              patch.object(week_finalizer, "store_week_matchups"), \
              patch.object(week_finalizer, "invoke_playoff_projection"), \
@@ -218,7 +232,9 @@ class MatchupValidationTests(unittest.TestCase):
 
         with patch.object(week_finalizer, "acquire_week", return_value=True) as acquire, \
              patch.object(week_finalizer, "ensure_player_cache", return_value=False), \
-             patch.object(week_finalizer, "cache_league_data", return_value={"1", "2"}), \
+             patch.object(
+                 week_finalizer, "cache_league_data", return_value=cached_league_data()
+             ), \
              patch.object(week_finalizer, "fetch_sleeper_data", return_value=[{"roster_id": 1}]), \
              patch.object(week_finalizer, "store_week_matchups") as store_week, \
              patch.object(week_finalizer, "mark_week_failed") as mark_failed, \
@@ -237,7 +253,9 @@ class MatchupValidationTests(unittest.TestCase):
         standings.calculate_and_store.return_value = [{"team_id": "1"}]
         with patch.object(week_finalizer, "acquire_week", return_value=True), \
              patch.object(week_finalizer, "ensure_player_cache", return_value=False), \
-             patch.object(week_finalizer, "cache_league_data", return_value={"1", "2"}), \
+             patch.object(
+                 week_finalizer, "cache_league_data", return_value=cached_league_data()
+             ), \
              patch.object(
                  week_finalizer,
                  "fetch_sleeper_data",
@@ -254,6 +272,79 @@ class MatchupValidationTests(unittest.TestCase):
         self.assertEqual(result["weeks_processed"], [1])
         retry_store.assert_called_once()
         retry_complete.assert_called_once()
+
+
+class LeagueSyncTests(unittest.TestCase):
+    def test_builds_current_names_with_the_frontend_fallback_order(self):
+        users = [
+            {
+                "user_id": "owner-1",
+                "metadata": {"team_name": "  Renamed Team  "},
+                "display_name": "Owner One",
+            },
+            {"user_id": "owner-2", "display_name": "Owner Two"},
+        ]
+        rosters = [
+            {"roster_id": 1, "owner_id": "owner-1"},
+            {"roster_id": 2, "owner_id": "owner-2"},
+            {"roster_id": 3, "owner_id": None},
+        ]
+
+        self.assertEqual(
+            week_finalizer.current_team_names(users, rosters),
+            {"1": "Renamed Team", "2": "Owner Two", "3": "Team 3"},
+        )
+
+    def test_sync_freshness_uses_a_seven_day_ttl_and_matching_context(self):
+        item = {
+            "league_id": "league-2026",
+            "season": "2026",
+            "synced_at": Decimal("1000"),
+        }
+
+        self.assertTrue(
+            week_finalizer.league_sync_is_fresh(
+                item, "league-2026", "2026", now=1_000 + 604_799
+            )
+        )
+        self.assertFalse(
+            week_finalizer.league_sync_is_fresh(
+                item, "league-2026", "2026", now=1_000 + 604_800
+            )
+        )
+        self.assertFalse(
+            week_finalizer.league_sync_is_fresh(
+                item, "other-league", "2026", now=1_001
+            )
+        )
+
+    def test_idle_run_syncs_stale_league_names_without_reprocessing_a_week(self):
+        table = Mock()
+        tables = {"league_data": table}
+        standings = Mock()
+        league_data = cached_league_data()
+
+        with patch.object(week_finalizer, "ensure_player_cache", return_value=False), \
+             patch.object(week_finalizer, "acquire_run_lease", return_value=True), \
+             patch.object(week_finalizer, "acquire_week", return_value=False), \
+             patch.object(week_finalizer, "get_league_sync_item", return_value=None), \
+             patch.object(
+                 week_finalizer, "cache_league_data", return_value=league_data
+             ) as cache, \
+             patch.object(week_finalizer, "mark_league_synced") as mark_synced, \
+             patch.object(week_finalizer, "release_run_lease"):
+            result = week_finalizer.run_finalization(
+                {}, context(3), tables, standings, Mock(), "league-sync"
+            )
+
+        self.assertEqual(result["weeks_processed"], [])
+        self.assertTrue(result["league_synced"])
+        cache.assert_called_once_with("league-2026", "2026", table)
+        standings.sync_team_names.assert_called_once_with(
+            "league-2026", "2026", league_data["team_names"]
+        )
+        standings.calculate_and_store.assert_not_called()
+        mark_synced.assert_called_once_with(table, "league-2026", "2026")
 
 
 class PlayerCacheTests(unittest.TestCase):
@@ -391,7 +482,9 @@ class PlayerCacheTests(unittest.TestCase):
              patch.object(week_finalizer, "acquire_run_lease", return_value=True), \
              patch.object(week_finalizer, "acquire_week", return_value=True), \
              patch.object(
-                 week_finalizer, "cache_league_data", return_value={"1", "2"}
+                 week_finalizer,
+                 "cache_league_data",
+                 return_value=cached_league_data(),
              ), \
              patch.object(
                  week_finalizer, "fetch_sleeper_data", return_value=matchups
@@ -485,6 +578,7 @@ class PlayerCacheTests(unittest.TestCase):
              patch.object(week_finalizer, "acquire_run_lease", return_value=True), \
              patch.object(week_finalizer, "refresh_player_cache") as refresh, \
              patch.object(week_finalizer, "acquire_week") as acquire_week, \
+             patch.object(week_finalizer, "league_sync_is_fresh", return_value=True), \
              patch.object(week_finalizer, "release_run_lease") as release:
             result = week_finalizer.run_finalization(
                 {}, context(1), tables, Mock(), Mock(), "week-one"
@@ -510,6 +604,7 @@ class PlayerCacheTests(unittest.TestCase):
              patch.object(
                  week_finalizer, "get_player_cache_item", return_value=fresh_item
              ), \
+             patch.object(week_finalizer, "league_sync_is_fresh", return_value=True), \
              patch.object(week_finalizer, "acquire_run_lease") as acquire_lease:
             result = week_finalizer.run_finalization(
                 {}, context(1), tables, Mock(), Mock(), "week-one"
@@ -528,6 +623,7 @@ class PlayerCacheTests(unittest.TestCase):
              patch.object(week_finalizer, "acquire_run_lease", return_value=True), \
              patch.object(week_finalizer, "refresh_player_cache") as refresh, \
              patch.object(week_finalizer, "acquire_week") as acquire_week, \
+             patch.object(week_finalizer, "league_sync_is_fresh", return_value=True), \
              patch.object(week_finalizer, "release_run_lease"):
             result = week_finalizer.run_finalization(
                 {}, context(1), tables, Mock(), Mock(), "week-one"

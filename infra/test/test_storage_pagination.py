@@ -55,6 +55,28 @@ class OverallTable:
         self.items.append(Item)
 
 
+class ExistingOverallTable:
+    def __init__(self):
+        self.item = {
+            "season": "2026",
+            "team_id": "1",
+            "league_id": "league-2026",
+            "team_name": "Old Name",
+            "total_wins": Decimal("17"),
+            "playoff_percentage": Decimal("42.5"),
+        }
+        self.update_calls = []
+
+    def get_item(self, Key):
+        if Key == {"season": "2026", "team_id": "1"}:
+            return {"Item": dict(self.item)}
+        return {}
+
+    def update_item(self, **kwargs):
+        self.update_calls.append(kwargs)
+        self.item["team_name"] = kwargs["ExpressionAttributeValues"][":team_name"]
+
+
 def weekly_item(team_id, wins, losses, points, rank):
     return {
         "team_id": team_id,
@@ -76,7 +98,7 @@ class OverallPaginationTests(unittest.TestCase):
 
         with patch.object(storage, "boto3", fake_boto3):
             storage.StandingsStorage(weekly, overall).update_overall_standings(
-                "league-2026", "2026"
+                "league-2026", "2026", {"1": "Current Name"}
             )
 
         self.assertEqual(len(weekly.calls), 2)
@@ -89,6 +111,27 @@ class OverallPaginationTests(unittest.TestCase):
         self.assertEqual(overall.items[0]["total_losses"], Decimal("1.0"))
         self.assertEqual(overall.items[0]["total_points"], Decimal("190.0"))
         self.assertEqual(overall.items[0]["earnings"], 25)
+        self.assertEqual(overall.items[0]["team_name"], "Current Name")
+
+    def test_name_sync_updates_only_the_name_on_existing_overall_rows(self):
+        overall = ExistingOverallTable()
+        standings = storage.StandingsStorage(None, overall)
+
+        updated = standings.sync_overall_team_names(
+            "league-2026",
+            "2026",
+            {"1": "New Name", "2": "No Standings Yet"},
+        )
+
+        self.assertEqual(updated, 1)
+        self.assertEqual(overall.item["team_name"], "New Name")
+        self.assertEqual(overall.item["total_wins"], Decimal("17"))
+        self.assertEqual(overall.item["playoff_percentage"], Decimal("42.5"))
+        self.assertEqual(len(overall.update_calls), 1)
+        self.assertEqual(
+            overall.update_calls[0]["UpdateExpression"],
+            "SET team_name = :team_name",
+        )
 
 
 if __name__ == "__main__":

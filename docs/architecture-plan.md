@@ -110,7 +110,7 @@ For each completed week, the controller:
 2. Fetches final matchup data from Sleeper.
 3. Runs the canonical vs-everyone calculation.
 4. Stores the raw final matchup snapshot and calculated weekly standings.
-5. Recalculates overall standings.
+5. Recalculates overall standings using current Sleeper team names.
 6. Runs playoff projections once after the batch of missing weeks is written.
 7. Marks the week complete with timestamps and input hashes.
 
@@ -143,7 +143,7 @@ API Gateway sends both `GET` and `OPTIONS` requests through the read Lambda. The
 
 The API stage applies a shared five-request-per-second rate limit with a burst capacity of 100 requests. The burst supports concurrent app startup and the chart's historical-week reads; the lower sustained rate limits abuse of the public endpoints. Live matchup polling calls Sleeper directly, so it is unaffected by this throttle.
 
-Hourly scheduling is intentionally simple and cheap. A no-op run resolves Sleeper state and checks player-cache freshness; the full player directory is downloaded only when its seven-day cache is stale. The existing season-wide lease coordinates both refresh and finalization, with freshness rechecked after lease acquisition so concurrent runs do not duplicate the large download. Matchups and league-specific metadata are fetched only when a completed week needs processing.
+Hourly scheduling is intentionally simple and cheap. A no-op run resolves Sleeper state and checks player-cache and league-sync freshness; the full player directory and league metadata are downloaded only when their seven-day caches are stale. Every newly finalized week also forces a league sync so the aggregate standings use current Sleeper team names. The existing season-wide lease coordinates refreshes and finalization, with freshness rechecked after lease acquisition so concurrent runs do not duplicate work. Matchups are fetched only when a completed week needs processing.
 
 ### Deleted-stack recovery
 

@@ -3,7 +3,7 @@ Main service class for Fantasy Football standings calculations
 """
 
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from .calculator import StandingsCalculator
 from .data_cache import DataCache
@@ -32,8 +32,10 @@ class StandingsService:
         league_id: str,
         season: str,
         include_player_details: bool = True,
+        team_names: Optional[Dict[str, str]] = None,
     ) -> List[Dict[str, Any]]:
-        team_names = self.data_cache.get_team_names(league_id, season)
+        if team_names is None:
+            team_names = self.data_cache.get_team_names(league_id, season)
         players_data = (
             self.data_cache.get_players_data(league_id, season)
             if include_player_details
@@ -41,16 +43,41 @@ class StandingsService:
         )
         return self.calculator.calculate_weekly_vs_everyone(matchups, team_names, players_data)
     
-    def calculate_and_store(self, matchups: List[Dict[str, Any]], league_id: str, season: str, week: int, include_player_details: bool = True) -> List[Dict[str, Any]]:
+    def calculate_and_store(
+        self,
+        matchups: List[Dict[str, Any]],
+        league_id: str,
+        season: str,
+        week: int,
+        include_player_details: bool = True,
+        team_names: Optional[Dict[str, str]] = None,
+    ) -> List[Dict[str, Any]]:
+        if team_names is None:
+            team_names = self.data_cache.get_team_names(league_id, season)
         weekly_results = self.calculate_standings(
             matchups,
             league_id,
             season,
             include_player_details,
+            team_names,
         )
         if not weekly_results:
             logger.warning("No weekly results to store")
             return []
         self.storage.store_weekly_standings(weekly_results, league_id, season, week)
-        self.storage.update_overall_standings(league_id, season)
+        self.storage.update_overall_standings(league_id, season, team_names)
         return weekly_results
+
+    def sync_team_names(
+        self,
+        league_id: str,
+        season: str,
+        team_names: Optional[Dict[str, str]] = None,
+    ) -> int:
+        if team_names is None:
+            team_names = self.data_cache.get_team_names(league_id, season)
+        return self.storage.sync_overall_team_names(
+            league_id,
+            season,
+            team_names,
+        )

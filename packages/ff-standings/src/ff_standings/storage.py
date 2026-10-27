@@ -5,7 +5,7 @@ DynamoDB storage operations for standings data
 import logging
 import boto3
 from decimal import Decimal
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,12 @@ class StandingsStorage:
                 raise
         logger.info(f"Stored weekly standings for week {week}")
     
-    def update_overall_standings(self, league_id: str, season: str) -> None:
+    def update_overall_standings(
+        self,
+        league_id: str,
+        season: str,
+        team_names: Optional[Dict[str, str]] = None,
+    ) -> None:
         try:
             all_weeks = scan_all(
                 self.weekly_standings_table,
@@ -69,8 +74,8 @@ class StandingsStorage:
             )
             team_totals = {}
             for item in all_weeks:
-                team_id = item['team_id']
-                team_name = item['team_name']
+                team_id = str(item['team_id'])
+                team_name = (team_names or {}).get(team_id, item['team_name'])
                 wins = float(item['wins'])      # Keep fractional wins
                 losses = float(item['losses'])  # Keep fractional losses
                 points = float(item['points'])
@@ -120,3 +125,35 @@ class StandingsStorage:
         except Exception as e:
             logger.error(f"Error updating overall standings: {e}")
             raise
+
+    def sync_overall_team_names(
+        self,
+        league_id: str,
+        season: str,
+        team_names: Dict[str, str],
+    ) -> int:
+        """Update names on existing overall rows without changing standings data."""
+        updated = 0
+        for team_id, team_name in team_names.items():
+            key = {'season': season, 'team_id': str(team_id)}
+            existing = self.overall_standings_table.get_item(Key=key).get('Item')
+            if (
+                not existing
+                or existing.get('league_id') != league_id
+                or existing.get('team_name') == team_name
+            ):
+                continue
+
+            self.overall_standings_table.update_item(
+                Key=key,
+                UpdateExpression='SET team_name = :team_name',
+                ConditionExpression='league_id = :league_id',
+                ExpressionAttributeValues={
+                    ':team_name': team_name,
+                    ':league_id': league_id,
+                },
+            )
+            updated += 1
+
+        logger.info(f"Synced current names for {updated} overall standings teams")
+        return updated

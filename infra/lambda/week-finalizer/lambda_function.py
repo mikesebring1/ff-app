@@ -28,8 +28,10 @@ FINALIZATION_DATA_TYPE = "week_finalization"
 RUN_LEASE_DATA_TYPE = "finalization_run_lease"
 PLAYER_DATA_TYPE = "players"
 PLAYER_CACHE_ID = "nfl_players"
+LEAGUE_SYNC_DATA_TYPE = "league_sync"
 LEASE_SECONDS = 20 * 60
 PLAYER_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60
+LEAGUE_SYNC_TTL_SECONDS = 7 * 24 * 60 * 60
 PLAYER_CACHE_SCHEMA_VERSION = 2
 # DynamoDB items are limited to 400 KiB. This lower JSON-size ceiling leaves
 # room for DynamoDB's attribute encoding and future metadata additions.
@@ -87,6 +89,10 @@ def finalization_id(league_id, season, week):
 
 
 def run_lease_id(league_id, season):
+    return f"{league_id}:{season}"
+
+
+def league_sync_id(league_id, season):
     return f"{league_id}:{season}"
 
 
@@ -380,6 +386,71 @@ def ensure_player_cache(
     return True
 
 
+def get_league_sync_item(table, league_id, season):
+    response = table.get_item(
+        Key={
+            "data_type": LEAGUE_SYNC_DATA_TYPE,
+            "id": league_sync_id(league_id, season),
+        },
+        ConsistentRead=True,
+    )
+    return response.get("Item")
+
+
+def league_sync_is_fresh(item, league_id, season, now=None):
+    if not isinstance(item, dict):
+        return False
+    synced_at = item.get("synced_at")
+    if (
+        item.get("league_id") != league_id
+        or item.get("season") != season
+        or not isinstance(synced_at, (int, float, Decimal))
+        or isinstance(synced_at, bool)
+    ):
+        return False
+    now = int(time.time()) if now is None else int(now)
+    return 0 <= now - int(synced_at) < LEAGUE_SYNC_TTL_SECONDS
+
+
+def mark_league_synced(table, league_id, season, now=None):
+    now = int(time.time()) if now is None else int(now)
+    table.put_item(Item={
+        "data_type": LEAGUE_SYNC_DATA_TYPE,
+        "id": league_sync_id(league_id, season),
+        "league_id": league_id,
+        "season": season,
+        "synced_at": now,
+        "sync_after": now + LEAGUE_SYNC_TTL_SECONDS,
+    })
+
+
+def current_team_names(users, rosters):
+    users_by_id = {
+        str(user["user_id"]): user
+        for user in users
+        if isinstance(user, dict) and user.get("user_id") is not None
+    }
+    team_names = {}
+    for roster in rosters:
+        roster_id = str(roster["roster_id"])
+        owner = users_by_id.get(str(roster.get("owner_id")), {})
+        metadata = owner.get("metadata") or {}
+        candidates = (
+            metadata.get("team_name"),
+            owner.get("display_name"),
+            owner.get("username"),
+        )
+        team_names[roster_id] = next(
+            (
+                candidate.strip()
+                for candidate in candidates
+                if isinstance(candidate, str) and candidate.strip()
+            ),
+            f"Team {roster_id}",
+        )
+    return team_names
+
+
 def cache_league_data(league_id, season, table):
     """Refresh league-specific metadata needed by standings calculations."""
     users = fetch_sleeper_data(f"https://api.sleeper.app/v1/league/{league_id}/users")
@@ -410,7 +481,10 @@ def cache_league_data(league_id, season, table):
         "data": league_info,
     }))
 
-    return {str(roster["roster_id"]) for roster in rosters}
+    return {
+        "roster_ids": {str(roster["roster_id"]) for roster in rosters},
+        "team_names": current_team_names(users, rosters),
+    }
 
 
 def validate_matchups(matchups, total_rosters, expected_roster_ids):
@@ -480,15 +554,20 @@ def run_finalization(event, league_context, tables, standings_service, lambda_cl
     state_table = tables["league_data"]
 
     # Week 1 has no completed standings work, but it still needs to bootstrap
-    # player metadata before the frontend starts using the backend endpoint.
-    if not completed_weeks and player_cache_is_fresh(
+    # player metadata and current league names.
+    player_cache_fresh = player_cache_is_fresh(
         get_player_cache_item(state_table), league_id, season
-    ):
+    )
+    league_sync_fresh = league_sync_is_fresh(
+        get_league_sync_item(state_table, league_id, season), league_id, season
+    )
+    if not completed_weeks and player_cache_fresh and league_sync_fresh:
         return {
             "season": season,
             "league_id": league_id,
             "weeks_processed": [],
             "player_cache_refreshed": False,
+            "league_synced": False,
         }
 
     attempt_id = attempt_id or str(uuid.uuid4())
@@ -510,13 +589,6 @@ def run_finalization(event, league_context, tables, standings_service, lambda_cl
             season,
             allow_stale_on_error=bool(completed_weeks),
         )
-        if not completed_weeks:
-            return {
-                "season": season,
-                "league_id": league_id,
-                "weeks_processed": [],
-                "player_cache_refreshed": player_cache_refreshed,
-            }
 
         acquired = [
             week for week in completed_weeks
@@ -529,17 +601,35 @@ def run_finalization(event, league_context, tables, standings_service, lambda_cl
                 force=week in force_weeks,
             )
         ]
-        if not acquired:
+        league_sync_due = not league_sync_is_fresh(
+            get_league_sync_item(state_table, league_id, season), league_id, season
+        )
+        if not acquired and not league_sync_due:
             return {
                 "season": season,
                 "league_id": league_id,
                 "weeks_processed": [],
                 "player_cache_refreshed": player_cache_refreshed,
+                "league_synced": False,
             }
 
         hashes = {}
         try:
-            expected_roster_ids = cache_league_data(league_id, season, state_table)
+            league_data = cache_league_data(league_id, season, state_table)
+            expected_roster_ids = league_data["roster_ids"]
+            team_names = league_data["team_names"]
+            standings_service.sync_team_names(league_id, season, team_names)
+            mark_league_synced(state_table, league_id, season)
+
+            if not acquired:
+                return {
+                    "season": season,
+                    "league_id": league_id,
+                    "weeks_processed": [],
+                    "player_cache_refreshed": player_cache_refreshed,
+                    "league_synced": True,
+                }
+
             for week in acquired:
                 matchups = fetch_sleeper_data(
                     f"https://api.sleeper.app/v1/league/{league_id}/matchups/{week}"
@@ -554,7 +644,12 @@ def run_finalization(event, league_context, tables, standings_service, lambda_cl
                 ).hexdigest()
                 store_week_matchups(state_table, league_id, season, week, matchups, input_hash)
                 results = standings_service.calculate_and_store(
-                    matchups, league_id, season, week, include_player_details=True
+                    matchups,
+                    league_id,
+                    season,
+                    week,
+                    include_player_details=True,
+                    team_names=team_names,
                 )
                 if not results:
                     raise RuntimeError(f"Sleeper returned no standings results for week {week}")
@@ -581,6 +676,7 @@ def run_finalization(event, league_context, tables, standings_service, lambda_cl
             "league_id": league_id,
             "weeks_processed": acquired,
             "player_cache_refreshed": player_cache_refreshed,
+            "league_synced": True,
         }
     finally:
         release_run_lease(state_table, league_id, season, attempt_id)
