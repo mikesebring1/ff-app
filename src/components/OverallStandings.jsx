@@ -1,11 +1,61 @@
+import { useMemo, useState } from 'react'
 import { Card, CardContent } from "@/components/ui/card"
 import OverallStandingsChart from './OverallStandingsChart'
+import { useCurrentWeek } from '../hooks/useCurrentWeek'
+import { useLeagueContext } from '../hooks/useLeagueContext'
 import { useOverallStandings } from '../hooks/useOverallStandings'
+import { useWeeklyStandings } from '../hooks/useWeeklyStandings'
+import { buildLiveOverallStandings } from '../lib/live-overall-standings'
 import { findToiletBowlQualifierIds } from '../lib/toilet-bowl'
 
 export default function OverallStandings({ selectedRosterId, onRosterSelect }) {
-  const { data: overallStandings = [], isLoading: loading, error } = useOverallStandings()
-  const toiletBowlQualifierIds = findToiletBowlQualifierIds(overallStandings)
+  const [liveSelection, setLiveSelection] = useState({ key: null, enabled: false })
+  const { data: leagueContext } = useLeagueContext()
+  const {
+    currentWeek,
+    displayWeek,
+    totalRosters,
+    playoffWeekStart,
+  } = useCurrentWeek()
+  const {
+    data: overallStandings = [],
+    isLoading: overallLoading,
+    error: overallError,
+  } = useOverallStandings()
+  const displayWeekNumber = Number(displayWeek)
+  const liveWeekEligible = Number.isInteger(displayWeekNumber)
+    && displayWeekNumber > 0
+    && displayWeekNumber === Number(currentWeek)
+    && displayWeekNumber < playoffWeekStart
+  const {
+    data: weeklyStandings = [],
+    isLoading: weeklyLoading,
+    error: weeklyError,
+    weekStarted,
+  } = useWeeklyStandings(String(displayWeek ?? ''), {
+    enabled: liveWeekEligible,
+    suppressUnstartedStandings: true,
+  })
+  const liveKey = `${leagueContext?.season ?? ''}:${leagueContext?.league_id ?? ''}:${displayWeek ?? ''}`
+  const liveEnabled = liveSelection.key === liveKey && liveSelection.enabled
+  const liveReady = !overallLoading
+    && !overallError
+    && !weeklyLoading
+    && !weeklyError
+    && weekStarted
+    && weeklyStandings.length === Number(totalRosters)
+  const displayedStandings = useMemo(
+    () => liveEnabled && liveReady
+      ? buildLiveOverallStandings(overallStandings, weeklyStandings)
+      : overallStandings,
+    [liveEnabled, liveReady, overallStandings, weeklyStandings],
+  )
+  const toiletBowlQualifierIds = findToiletBowlQualifierIds(displayedStandings)
+  const liveDisabled = !liveEnabled && !liveReady
+
+  const toggleLive = () => {
+    setLiveSelection({ key: liveKey, enabled: !liveEnabled })
+  }
 
   // Highlight selected team with background
   const getHighlightStyle = (rosterId) => {
@@ -18,6 +68,35 @@ export default function OverallStandings({ selectedRosterId, onRosterSelect }) {
 
   return (
     <div>
+      {liveWeekEligible && (
+        <div className="mb-3 flex flex-col items-end gap-1 px-1">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={liveEnabled}
+            aria-describedby={liveEnabled ? 'live-standings-description' : undefined}
+            disabled={liveDisabled}
+            onClick={toggleLive}
+            title={!liveReady && !liveEnabled
+              ? (weeklyError?.message || 'Live standings are available after scoring begins')
+              : undefined}
+            className="inline-flex items-center gap-2 rounded-full px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <span className="text-sm font-medium">Live</span>
+            <span
+              aria-hidden="true"
+              className={`relative h-6 w-11 rounded-full transition-colors ${liveEnabled ? 'bg-lime-500' : 'bg-input'}`}
+            >
+              <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${liveEnabled ? 'translate-x-5' : ''}`} />
+            </span>
+          </button>
+          {liveEnabled && (
+            <span id="live-standings-description" className="text-xs text-muted-foreground">
+              Week {displayWeek} scores included; playoff odds remain finalized.
+            </span>
+          )}
+        </div>
+      )}
       <Card>
         <CardContent className="px-2 pt-6 sm:px-6">
           {/* Column Headers */}
@@ -34,7 +113,7 @@ export default function OverallStandings({ selectedRosterId, onRosterSelect }) {
             </div>
           </div>
 
-          {loading && (
+          {overallLoading && (
             <div className="text-center py-8 text-muted-foreground">
               <div className="flex flex-col items-center gap-2">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
@@ -43,10 +122,10 @@ export default function OverallStandings({ selectedRosterId, onRosterSelect }) {
             </div>
           )}
           
-          {error && (
+          {overallError && (
             <div className="text-center py-8 text-red-500">
               <div className="flex flex-col items-center gap-2">
-                <span className="font-medium">{error?.message || 'Failed to load data'}</span>
+                <span className="font-medium">{overallError?.message || 'Failed to load data'}</span>
                 <button 
                   onClick={() => window.location.reload()} 
                   className="text-sm text-blue-500 hover:text-blue-700 underline"
@@ -57,9 +136,9 @@ export default function OverallStandings({ selectedRosterId, onRosterSelect }) {
             </div>
           )}
           
-          {!loading && !error && (
+          {!overallLoading && !overallError && (
             <div className="space-y-0">
-              {overallStandings.map((team) => (
+              {displayedStandings.map((team) => (
                 <div 
                   key={team.id}
                   className={`grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center border-b px-2 py-4 last:border-b-0 sm:px-4 ${getHighlightStyle(team.id)}`}
