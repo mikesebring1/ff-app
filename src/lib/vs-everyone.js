@@ -76,7 +76,13 @@ export function buildWeeklyStandings({ matchups, rosters, users, players, projec
   return calculateVsEveryone(matchups, teamNames).map((result) => {
     const roster = rosterById.get(result.roster_id) ?? {}
     const matchup = matchupById.get(result.roster_id) ?? {}
-    const allPlayers = (roster.players ?? []).map((playerId) => {
+    const weeklyPlayers = Array.isArray(matchup.players)
+      ? matchup.players
+      : (roster.players ?? [])
+    const weeklyStarters = Array.isArray(matchup.starters)
+      ? matchup.starters
+      : (roster.starters ?? [])
+    const allPlayers = weeklyPlayers.map((playerId) => {
       const playerData = players?.[playerId]
       return {
         player_id: playerId,
@@ -87,12 +93,12 @@ export function buildWeeklyStandings({ matchups, rosters, users, players, projec
         team: playerData?.team || '',
         points: matchup.players_points?.[playerId] ?? 0,
         projected_points: projections?.[playerId] || 0,
-        is_starter: roster.starters?.includes(playerId) || false,
+        is_starter: weeklyStarters.includes(playerId),
       }
     })
 
     const playerById = new Map(allPlayers.map((player) => [player.player_id, player]))
-    const starters = (roster.starters ?? []).flatMap((playerId, index) => {
+    const starters = weeklyStarters.flatMap((playerId, index) => {
       const player = playerById.get(playerId)
       return player ? [{
         ...player,

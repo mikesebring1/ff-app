@@ -52,3 +52,42 @@ test('weekly adapter preserves the component shape and fractional record', () =>
   assert.equal(standings[0].starters[0].player, 'Ada Quarterback')
   assert.equal(standings[0].benchPlayers[0].player, 'Bench Player')
 })
+
+test('weekly adapter uses the selected matchup lineup instead of the current roster', () => {
+  const [standing] = buildWeeklyStandings({
+    matchups: [{
+      roster_id: 1,
+      points: 21,
+      players: ['historicalStarter', 'historicalBench'],
+      starters: ['historicalStarter'],
+      players_points: { historicalStarter: 21, historicalBench: 7 },
+    }],
+    rosters: [{
+      roster_id: 1,
+      owner_id: 'user1',
+      players: ['currentStarter', 'historicalStarter'],
+      starters: ['currentStarter'],
+    }],
+    users: [{ user_id: 'user1', display_name: 'Historical Team' }],
+    players: {
+      historicalStarter: { full_name: 'Historical Starter', position: 'QB' },
+      historicalBench: { full_name: 'Historical Bench', position: 'WR' },
+      currentStarter: { full_name: 'Current Starter', position: 'QB' },
+    },
+    projections: {
+      historicalStarter: 18,
+      historicalBench: 9,
+      currentStarter: 20,
+    },
+  })
+
+  assert.deepEqual(
+    standing.starters.map((player) => player.player_id),
+    ['historicalStarter'],
+  )
+  assert.deepEqual(
+    standing.benchPlayers.map((player) => player.player_id),
+    ['historicalBench'],
+  )
+  assert.equal(standing.projectedTotal, '18.0')
+})
