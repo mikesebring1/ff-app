@@ -177,12 +177,14 @@ export default function PregameCrystalBall({
     fizzleProgressRef.current = 0
     fizzleStartRef.current = null
 
-    const darkMode = document.documentElement.classList.contains('dark')
     const backgroundColor = getEffectiveBackgroundColor(stage)
     const random = createRandom(hashString(maskKey))
-    const dotColors = darkMode
-      ? ['#f5f5f7', '#c7c7cc', '#8e8e93', '#d9dbe1']
-      : ['#1d1d1f', '#6e6e73', '#a1a1a6', '#7c8798']
+    const rootStyles = window.getComputedStyle(document.documentElement)
+    const dotColors = [
+      '--team-primary',
+      '--team-secondary',
+      '--team-tint-foreground',
+    ].map((property) => rootStyles.getPropertyValue(property).trim())
 
     metricsRef.current = {
       backgroundColor,
@@ -238,7 +240,10 @@ export default function PregameCrystalBall({
     if (stageRef.current) observer.observe(stageRef.current)
 
     const themeObserver = new MutationObserver(drawVeil)
-    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class', 'style', 'data-favorite-nfl-team'],
+    })
 
     return () => {
       if (recoverTimerRef.current) {

@@ -16,6 +16,15 @@ import {
   readThemePreference,
   resolveDarkMode,
 } from '../src/lib/theme-preference.js'
+import {
+  applyNflTeamTheme,
+  DEFAULT_NFL_TEAM,
+  NFL_TEAM_OPTIONS,
+  normalizeFavoriteNflTeam,
+  persistFavoriteNflTeam,
+  readFavoriteNflTeam,
+  resolveNflTeamTheme,
+} from '../src/lib/nfl-team-theme.js'
 
 const rosters = [
   { roster_id: 1, owner_id: 'owner-1' },
@@ -32,6 +41,30 @@ const users = [
   { user_id: 'owner-2', display_name: 'Alpha Squad' },
   { user_id: 'owner-3', username: 'third-owner' },
 ]
+
+function relativeLuminance(hexColor) {
+  const channels = hexColor
+    .slice(1)
+    .match(/.{2}/g)
+    .map((channel) => Number.parseInt(channel, 16) / 255)
+    .map((channel) => (
+      channel <= 0.04045
+        ? channel / 12.92
+        : ((channel + 0.055) / 1.055) ** 2.4
+    ))
+
+  return (0.2126 * channels[0]) + (0.7152 * channels[1]) + (0.0722 * channels[2])
+}
+
+function contrastRatio(firstColor, secondColor) {
+  const firstLuminance = relativeLuminance(firstColor)
+  const secondLuminance = relativeLuminance(secondColor)
+
+  return (
+    (Math.max(firstLuminance, secondLuminance) + 0.05)
+    / (Math.min(firstLuminance, secondLuminance) + 0.05)
+  )
+}
 
 test('builds roster names with the same Sleeper fallback order as standings', () => {
   assert.deepEqual(buildRosterTeamNames(rosters, users), {
@@ -130,4 +163,79 @@ test('reads and persists theme preferences safely when browser storage is restri
     get: () => { throw new Error('blocked') },
   })
   assert.equal(getThemeStorage(restrictedWindow), undefined)
+})
+
+test('normalizes and safely persists the favorite NFL team independently', () => {
+  const values = new Map([['favoriteNflTeam', 'vikings']])
+  const storage = {
+    getItem: (key) => values.get(key),
+    setItem: (key, value) => values.set(key, value),
+  }
+
+  assert.deepEqual(NFL_TEAM_OPTIONS.map((team) => team.value), [
+    'buccaneers',
+    'vikings',
+    'bears',
+    'packers',
+  ])
+  NFL_TEAM_OPTIONS.forEach((team) => {
+    assert.match(team.logoSrc, /^\/nfl-logos\/[a-z]+\.png$/)
+  })
+  assert.equal(readFavoriteNflTeam(storage), 'vikings')
+  assert.equal(normalizeFavoriteNflTeam('bears'), 'bears')
+  assert.equal(normalizeFavoriteNflTeam('lions'), DEFAULT_NFL_TEAM)
+  assert.equal(persistFavoriteNflTeam(storage, 'packers'), 'packers')
+  assert.equal(values.get('favoriteNflTeam'), 'packers')
+  assert.equal(persistFavoriteNflTeam(storage, 'invalid'), DEFAULT_NFL_TEAM)
+  assert.equal(values.get('favoriteNflTeam'), DEFAULT_NFL_TEAM)
+
+  const restrictedStorage = {
+    getItem: () => { throw new Error('blocked') },
+    setItem: () => { throw new Error('blocked') },
+  }
+  assert.equal(readFavoriteNflTeam(restrictedStorage), DEFAULT_NFL_TEAM)
+  assert.equal(persistFavoriteNflTeam(restrictedStorage, 'buccaneers'), 'buccaneers')
+})
+
+test('applies light and dark team tokens and restores CSS defaults', () => {
+  const properties = new Map()
+  const root = {
+    dataset: {},
+    style: {
+      setProperty: (property, value) => properties.set(property, value),
+      removeProperty: (property) => properties.delete(property),
+    },
+  }
+
+  assert.equal(applyNflTeamTheme(root, 'bears', false), 'bears')
+  assert.deepEqual(Object.fromEntries(properties), resolveNflTeamTheme('bears', false))
+  assert.equal(root.dataset.favoriteNflTeam, 'bears')
+
+  assert.equal(applyNflTeamTheme(root, 'bears', true), 'bears')
+  assert.deepEqual(Object.fromEntries(properties), resolveNflTeamTheme('bears', true))
+
+  assert.equal(applyNflTeamTheme(root, DEFAULT_NFL_TEAM, true), DEFAULT_NFL_TEAM)
+  assert.equal(properties.size, 0)
+  assert.equal('favoriteNflTeam' in root.dataset, false)
+})
+
+test('keeps every team token pairing at WCAG AA text contrast', () => {
+  NFL_TEAM_OPTIONS.forEach((team) => {
+    for (const isDarkMode of [false, true]) {
+      const theme = resolveNflTeamTheme(team.value, isDarkMode)
+
+      assert.ok(
+        contrastRatio(theme['--team-primary'], theme['--team-primary-foreground']) >= 4.5,
+        `${team.label} primary colors need AA contrast`,
+      )
+      assert.ok(
+        contrastRatio(theme['--team-secondary'], theme['--team-secondary-foreground']) >= 4.5,
+        `${team.label} secondary colors need AA contrast`,
+      )
+      assert.ok(
+        contrastRatio(theme['--team-tint'], theme['--team-tint-foreground']) >= 4.5,
+        `${team.label} tint colors need AA contrast`,
+      )
+    }
+  })
 })

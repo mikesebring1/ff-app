@@ -46,6 +46,8 @@
   --radius: 0.875rem;
   --team-primary: #1d1d1f;
   --team-primary-foreground: #ffffff;
+  --team-secondary: #6e6e73;
+  --team-secondary-foreground: #ffffff;
   --team-tint: #e8e8ed;
   --team-tint-foreground: #1d1d1f;
   --background: #f5f5f7;
@@ -67,10 +69,10 @@
   --input: #d2d2d7;
   --ring: #0071e3;
   --chart-1: var(--team-primary);
-  --chart-2: #0071e3;
-  --chart-3: #34c759;
-  --chart-4: #ff9f0a;
-  --chart-5: #ff3b30;
+  --chart-2: var(--team-secondary);
+  --chart-3: color-mix(in oklab, var(--team-primary) 75%, var(--team-secondary));
+  --chart-4: color-mix(in oklab, var(--team-primary) 50%, var(--team-secondary));
+  --chart-5: color-mix(in oklab, var(--team-primary) 25%, var(--team-secondary));
   --sidebar: #f5f5f7;
   --sidebar-foreground: #1d1d1f;
   --sidebar-primary: var(--team-primary);
@@ -89,6 +91,8 @@
   color-scheme: dark;
   --team-primary: #f5f5f7;
   --team-primary-foreground: #1d1d1f;
+  --team-secondary: #a1a1a6;
+  --team-secondary-foreground: #1d1d1f;
   --team-tint: #2c2c2e;
   --team-tint-foreground: #f5f5f7;
   --background: #000000;
@@ -110,10 +114,10 @@
   --input: #38383a;
   --ring: #2997ff;
   --chart-1: var(--team-primary);
-  --chart-2: #2997ff;
-  --chart-3: #30d158;
-  --chart-4: #ff9f0a;
-  --chart-5: #ff453a;
+  --chart-2: var(--team-secondary);
+  --chart-3: color-mix(in oklab, var(--team-primary) 75%, var(--team-secondary));
+  --chart-4: color-mix(in oklab, var(--team-primary) 50%, var(--team-secondary));
+  --chart-5: color-mix(in oklab, var(--team-primary) 25%, var(--team-secondary));
   --sidebar: #1c1c1e;
   --sidebar-foreground: #f5f5f7;
   --sidebar-primary: var(--team-primary);

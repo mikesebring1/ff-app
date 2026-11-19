@@ -50,10 +50,11 @@ export default function BaseChart({
 
   const getStrokeColor = (rosterId) => {
     if (selectedRosterId == null) {
-      return "var(--muted-foreground)"
+      const teamIndex = teams.findIndex((team) => team.rosterId === rosterId)
+      return `var(--chart-${(Math.max(teamIndex, 0) % 5) + 1})`
     }
     if (selectedRosterId === rosterId) {
-      return "var(--primary)"
+      return "var(--chart-1)"
     }
     return "var(--muted)"
   }
@@ -176,6 +177,11 @@ export default function BaseChart({
                         : 'opacity-50 hover:opacity-100'
                   }`}
                 >
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full border border-black/10 dark:border-white/10"
+                    style={{ backgroundColor: getStrokeColor(team.rosterId) }}
+                    aria-hidden="true"
+                  />
                   {team.label}
                 </Button>
               )

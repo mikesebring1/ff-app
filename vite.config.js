@@ -13,6 +13,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
+      includeAssets: ['nfl-logos/*.png'],
       registerType: 'prompt',
       manifest: {
         name: 'Madtown\'s Finest Fantasy Football League',

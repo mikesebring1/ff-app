@@ -6,6 +6,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
@@ -41,6 +42,14 @@ import {
   resolveDarkMode,
 } from './lib/theme-preference'
 import {
+  applyNflTeamTheme,
+  DEFAULT_NFL_TEAM,
+  NFL_TEAM_OPTIONS,
+  normalizeFavoriteNflTeam,
+  persistFavoriteNflTeam,
+  readFavoriteNflTeam,
+} from './lib/nfl-team-theme'
+import {
   rosterIdFromTeamSelection,
   teamSelectionValue,
 } from './lib/team-names'
@@ -74,9 +83,11 @@ function subscribeToSystemDarkMode(onChange) {
 
 function SettingsMenu({
   align = 'end',
+  favoriteNflTeam,
   isDarkMode,
   selectedRosterId,
   setSelectedRosterId,
+  setFavoriteNflTeam,
   setThemePreference,
   side = 'top',
   teams,
@@ -110,7 +121,10 @@ function SettingsMenu({
             )}
             <span>Theme</span>
           </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
+          <DropdownMenuSubContent className="w-60">
+            <DropdownMenuLabel className="px-2 pb-1 pt-2 text-xs font-medium text-muted-foreground">
+              Appearance
+            </DropdownMenuLabel>
             <DropdownMenuRadioGroup
               value={themePreference}
               onValueChange={(value) => setThemePreference(normalizeThemePreference(value))}
@@ -127,6 +141,32 @@ function SettingsMenu({
                 <Moon className="h-4 w-4" aria-hidden="true" />
                 Dark
               </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+            <DropdownMenuSeparator className="my-1.5" />
+            <DropdownMenuLabel className="px-2 pb-1 pt-1.5 text-xs font-medium text-muted-foreground">
+              Favorite NFL team
+            </DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={favoriteNflTeam}
+              onValueChange={(value) => setFavoriteNflTeam(normalizeFavoriteNflTeam(value))}
+            >
+              <DropdownMenuRadioItem value={DEFAULT_NFL_TEAM} className="gap-2">
+                <Trophy className="h-6 w-6" aria-hidden="true" />
+                League default
+              </DropdownMenuRadioItem>
+              {NFL_TEAM_OPTIONS.map((team) => (
+                <DropdownMenuRadioItem key={team.value} value={team.value} className="gap-2">
+                  <img
+                    src={team.logoSrc}
+                    alt=""
+                    aria-hidden="true"
+                    className="h-7 w-7 shrink-0 object-contain"
+                    decoding="async"
+                    loading="lazy"
+                  />
+                  {team.label}
+                </DropdownMenuRadioItem>
+              ))}
             </DropdownMenuRadioGroup>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
@@ -176,6 +216,10 @@ function App() {
     () => false,
   )
   const isDarkMode = resolveDarkMode(themePreference, systemPrefersDark)
+  const [favoriteNflTeam, setFavoriteNflTeam] = useState(() => {
+    if (typeof window === 'undefined') return DEFAULT_NFL_TEAM
+    return readFavoriteNflTeam(getThemeStorage(window))
+  })
 
   const [selectedRosterId, setSelectedRosterId] = useState(null)
   const [activeView, setActiveView] = useState(null)
@@ -206,15 +250,18 @@ function App() {
     }
   }, [selectedRosterId, teams, teamsLoading, teamsError])
 
-  // Apply the resolved theme while retaining the user's three-state preference.
+  // Apply the resolved appearance and team palette while retaining both preferences.
   useEffect(() => {
     const root = window.document.documentElement
     root.classList.toggle('dark', isDarkMode)
     root.style.colorScheme = isDarkMode ? 'dark' : 'light'
+    applyNflTeamTheme(root, favoriteNflTeam, isDarkMode)
     window.document.querySelector('meta[name="theme-color"]')
       ?.setAttribute('content', isDarkMode ? '#000000' : '#f5f5f7')
-    persistThemePreference(getThemeStorage(window), themePreference)
-  }, [isDarkMode, themePreference])
+    const storage = getThemeStorage(window)
+    persistThemePreference(storage, themePreference)
+    persistFavoriteNflTeam(storage, favoriteNflTeam)
+  }, [favoriteNflTeam, isDarkMode, themePreference])
 
   const handleUpdate = async () => {
     if (updateInProgress) return
@@ -269,9 +316,11 @@ function App() {
 
               <div className="hidden md:block">
                 <SettingsMenu
+                  favoriteNflTeam={favoriteNflTeam}
                   isDarkMode={isDarkMode}
                   selectedRosterId={selectedRosterId}
                   setSelectedRosterId={setSelectedRosterId}
+                  setFavoriteNflTeam={setFavoriteNflTeam}
                   setThemePreference={setThemePreference}
                   side="bottom"
                   teams={teams}
@@ -386,9 +435,11 @@ function App() {
               </TabsList>
 
               <SettingsMenu
+                favoriteNflTeam={favoriteNflTeam}
                 isDarkMode={isDarkMode}
                 selectedRosterId={selectedRosterId}
                 setSelectedRosterId={setSelectedRosterId}
+                setFavoriteNflTeam={setFavoriteNflTeam}
                 setThemePreference={setThemePreference}
                 teams={teams}
                 teamsError={teamsError}
