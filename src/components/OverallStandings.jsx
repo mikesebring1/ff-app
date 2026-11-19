@@ -69,12 +69,11 @@ export default function OverallStandings({ selectedRosterId, onRosterSelect }) {
   return (
     <div>
       {liveWeekEligible && (
-        <div className="mb-3 flex flex-col items-end gap-1 px-1">
+        <div className="mb-3 flex justify-end px-1">
           <button
             type="button"
             role="switch"
             aria-checked={liveEnabled}
-            aria-describedby={liveEnabled ? 'live-standings-description' : undefined}
             disabled={liveDisabled}
             onClick={toggleLive}
             title={!liveReady && !liveEnabled
@@ -90,11 +89,6 @@ export default function OverallStandings({ selectedRosterId, onRosterSelect }) {
               <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${liveEnabled ? 'translate-x-5' : ''}`} />
             </span>
           </button>
-          {liveEnabled && (
-            <span id="live-standings-description" className="text-xs text-muted-foreground">
-              Week {displayWeek} scores included; playoff odds remain finalized.
-            </span>
-          )}
         </div>
       )}
       <Card className="overflow-hidden">
