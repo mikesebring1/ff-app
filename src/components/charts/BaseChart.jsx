@@ -68,10 +68,10 @@ export default function BaseChart({
   if (statusMessage) {
     return (
       <Card className="mt-6">
-        <CardHeader>
-          <CardTitle className="text-center">{title}</CardTitle>
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="text-xl font-semibold tracking-tight sm:text-2xl">{title}</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 sm:px-6">
           <div className={`text-center py-8 ${error ? 'text-red-500' : 'text-muted-foreground'}`}>
             {statusMessage}
           </div>
@@ -82,11 +82,11 @@ export default function BaseChart({
 
 
   return (
-    <Card className="mt-6">
-      <CardHeader>
-        <CardTitle className="text-center">{title}</CardTitle>
+    <Card className="mt-6 overflow-hidden">
+      <CardHeader className="p-4 sm:p-6">
+        <CardTitle className="text-xl font-semibold tracking-tight sm:text-2xl">{title}</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-2 sm:px-6">
         <ChartContainer config={buildChartConfig(teams)}>
           <LineChart
             data={chartData}
@@ -168,7 +168,7 @@ export default function BaseChart({
                   variant={isSelected ? "default" : "outline"}
                   size="sm"
                   onClick={() => onRosterSelect(isSelected ? null : team.rosterId)}
-                  className={`text-xs h-7 px-2 ${
+                  className={`min-h-10 px-3 text-sm ${
                     isSelected
                       ? ''
                       : isAllTeams

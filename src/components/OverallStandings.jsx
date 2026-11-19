@@ -97,17 +97,20 @@ export default function OverallStandings({ selectedRosterId, onRosterSelect }) {
           )}
         </div>
       )}
-      <Card>
-        <CardContent className="px-2 pt-6 sm:px-6">
+      <Card className="overflow-hidden">
+        <CardContent className="px-3 pt-5 sm:px-6 sm:pt-7">
+          <div className="mb-6 px-1 sm:px-2">
+            <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Overall standings</h2>
+          </div>
           {/* Column Headers */}
-          <div className="grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center border-b px-2 py-2 text-sm font-medium text-muted-foreground sm:px-4">
+          <div className="grid grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center border-b px-2 py-3 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground sm:px-4">
             <div>
               <span className="sr-only">Toilet Bowl status</span>
             </div>
             <div className="min-w-0">
               <span>Team</span>
             </div>
-            <div className="flex gap-8">
+            <div className="flex gap-4 sm:gap-8">
               <span>Points</span>
               <span>Playoff %</span>
             </div>
@@ -121,13 +124,13 @@ export default function OverallStandings({ selectedRosterId, onRosterSelect }) {
               </div>
             </div>
           )}
-          
+
           {overallError && (
             <div className="text-center py-8 text-red-500">
               <div className="flex flex-col items-center gap-2">
                 <span className="font-medium">{overallError?.message || 'Failed to load data'}</span>
-                <button 
-                  onClick={() => window.location.reload()} 
+                <button
+                  onClick={() => window.location.reload()}
                   className="text-sm text-blue-500 hover:text-blue-700 underline"
                 >
                   Tap to retry
@@ -135,17 +138,21 @@ export default function OverallStandings({ selectedRosterId, onRosterSelect }) {
               </div>
             </div>
           )}
-          
+
           {!overallLoading && !overallError && (
             <div className="space-y-0">
               {displayedStandings.map((team) => (
-                <div 
+                <div
                   key={team.id}
-                  className={`grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center border-b px-2 py-4 last:border-b-0 sm:px-4 ${getHighlightStyle(team.id)}`}
+                  className={`grid grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center border-b px-2 py-4 transition-colors last:border-b-0 sm:px-4 ${getHighlightStyle(team.id)}`}
                 >
                   <div className="flex items-center">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-xs font-bold tabular-nums text-muted-foreground">
+                      {team.rank}
+                    </span>
                     {toiletBowlQualifierIds.has(String(team.id)) && (
                       <span
+                        className="-ml-2 -mt-7 text-xs"
                         role="img"
                         aria-label="Currently qualifies for the Toilet Bowl"
                         title="Currently qualifies for the Toilet Bowl"
@@ -156,16 +163,16 @@ export default function OverallStandings({ selectedRosterId, onRosterSelect }) {
                   </div>
                   <div className="min-w-0">
                     <div>
-                      <div className="text-sm font-medium">
-                        {team.rank} - {team.teamName}
+                      <div className="truncate text-sm font-semibold tracking-tight">
+                        {team.teamName}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {team.overallRecord}, {team.earnings}
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-8 text-sm font-medium">
-                    <span className="text-primary">{team.totalPoints}</span>
+                  <div className="flex gap-4 text-sm font-semibold tabular-nums sm:gap-8">
+                    <span className="text-foreground">{team.totalPoints}</span>
                     <span className="w-16 text-center">{team.playoffPct}</span>
                   </div>
                 </div>
@@ -174,7 +181,7 @@ export default function OverallStandings({ selectedRosterId, onRosterSelect }) {
           )}
         </CardContent>
       </Card>
-      
+
       <OverallStandingsChart
         selectedRosterId={selectedRosterId}
         onRosterSelect={onRosterSelect}

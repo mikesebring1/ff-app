@@ -31,10 +31,10 @@ import {
 
 function TeamScore({ points, projectedTotal }) {
   return (
-    <div className="font-medium rounded px-1">
-      <span className="text-primary">{points}</span>
+    <div className="rounded-lg px-1 font-semibold tabular-nums">
+      <span className="text-foreground">{points}</span>
       {projectedTotal && parseFloat(projectedTotal) > 0 && (
-        <span className="text-xs text-gray-400 ml-1">/{projectedTotal}</span>
+        <span className="ml-1 text-xs font-medium text-muted-foreground">/ {projectedTotal}</span>
       )}
     </div>
   )
@@ -54,7 +54,7 @@ function PlayerScore({ change, points, placeholderForZero = false }) {
   return (
     <span
       key={change?.sequence ?? 'stable'}
-      className={`${flashClass} inline-block rounded px-1 -mr-1`}
+      className={`${flashClass} -mr-1 inline-block rounded px-1 tabular-nums`}
     >
       {displayScore}
     </span>
@@ -155,16 +155,17 @@ export default function WeeklyStandings({ selectedRosterId, onRosterSelect }) {
 
   return (
     <div>
-      <Card>
-        <CardContent className="pt-3 sm:pt-6">
+      <Card className="overflow-hidden">
+        <CardContent className="px-3 pt-4 sm:px-6 sm:pt-7">
           {/* Week Selector */}
-          <div className="flex justify-center mb-4">
+          <div className="mb-4 flex items-end justify-between gap-3 px-1 sm:mb-6 sm:gap-4 sm:px-2">
+            <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Weekly standings</h2>
             <Select
               value={selectedWeek}
               onValueChange={(week) => setWeekSelection({ isManual: true, week })}
               disabled={loading || availableWeeks.length === 0}
             >
-              <SelectTrigger className="w-[140px]">
+              <SelectTrigger aria-label="Select week" className="h-11 w-[132px] rounded-full bg-muted/60 px-4 shadow-none">
                 <SelectValue placeholder={loading ? "Loading..." : availableWeeks.length === 0 ? "No weeks" : "Select week"} />
               </SelectTrigger>
               <SelectContent>
@@ -179,7 +180,7 @@ export default function WeeklyStandings({ selectedRosterId, onRosterSelect }) {
 
           {/* Auto-Refresh Toggle */}
           {isLivePolling && (
-            <div className="flex flex-col items-center mb-3 sm:mb-6">
+            <div className="mb-4 flex flex-col items-start px-1 sm:mb-6 sm:px-2">
               <div className="flex items-center gap-2">
                 <div className="relative flex h-3 w-3">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime-400 opacity-75"></span>
@@ -211,11 +212,11 @@ export default function WeeklyStandings({ selectedRosterId, onRosterSelect }) {
               week={selectedWeek}
             />
           ) : !showPostseasonPreview ? (
-            <div className="flex justify-between items-center py-2 border-b font-medium text-sm text-muted-foreground">
-              <div className="flex items-center gap-2 pl-10">
+            <div className="flex items-center justify-between border-b px-2 py-3 text-xs font-bold uppercase tracking-[0.13em] text-muted-foreground sm:px-4">
+              <div className="flex items-center gap-2 pl-6">
                 <span>Team</span>
               </div>
-              <div className="pr-4">
+              <div>
                 <span>Points</span>
               </div>
             </div>
@@ -265,14 +266,17 @@ export default function WeeklyStandings({ selectedRosterId, onRosterSelect }) {
                         initial={false}
                         transition={{ type: 'spring', stiffness: 420, damping: 36 }}
                       >
-                        <AccordionItem value={team.id} className={highlight.className || ""}>
-                          <AccordionTrigger className="px-2 sm:px-4 hover:no-underline [&>svg]:hidden">
+                        <AccordionItem value={team.id} className={`transition-colors ${highlight.className || ""}`}>
+                          <AccordionTrigger className="px-2 py-4 hover:bg-accent/35 hover:no-underline sm:px-4 [&>svg]:hidden">
                             <div className="flex items-center justify-between w-full">
                               <div className="flex items-center gap-2">
                                 <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${openItems.includes(team.id) ? 'rotate-180' : ''}`} />
-                                <div>
-                                  <div className="font-medium">
-                                    {team.rank} - {team.teamName}
+                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold tabular-nums text-muted-foreground">
+                                  {team.rank}
+                                </span>
+                                <div className="min-w-0 text-left">
+                                  <div className="truncate font-semibold tracking-tight">
+                                    {team.teamName}
                                   </div>
                                   <div className="text-sm text-muted-foreground">
                                     {team.record}
@@ -294,7 +298,7 @@ export default function WeeklyStandings({ selectedRosterId, onRosterSelect }) {
                                     <div className="space-y-1 border-b pb-2 mb-2">
                                       {team.starters.map((player) => (
                                         <div key={player.player_id} className="py-1">
-                                          <div className="flex justify-between items-center text-xs sm:text-sm">
+                                          <div className="flex items-center justify-between text-sm">
                                             <div className="flex items-center">
                                               <span className="font-medium text-muted-foreground w-8 sm:w-10 inline-block">
                                                 {player.lineup_position}
@@ -324,7 +328,7 @@ export default function WeeklyStandings({ selectedRosterId, onRosterSelect }) {
 
                                           return (
                                             <div key={player.player_id} className="py-1 opacity-75">
-                                              <div className="flex justify-between items-center text-xs sm:text-sm">
+                                              <div className="flex items-center justify-between text-sm">
                                                 <div className="flex items-center">
                                                   <span className="font-medium text-muted-foreground w-8 sm:w-10 inline-block">
                                                     {player.position}

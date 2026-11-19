@@ -57,7 +57,7 @@ function TeamRow({ label, onRosterSelect, selectedRosterId, showProjection = tru
         </span>
       </span>
       <span className="text-right">
-        <span className="block font-mono text-base font-bold tabular-nums">
+        <span className="block text-base font-bold tabular-nums">
           {formatScore(team.score)}
         </span>
         {showProjection && team.projectedPoints !== null && (
@@ -240,9 +240,9 @@ function CumulativeToiletBowl({ onRosterSelect, round, selectedRosterId, opening
                 <span className="block truncate font-semibold">{team.teamName}</span>
                 {isLast && <span className="block text-xs text-red-600 dark:text-red-400">Last place</span>}
               </span>
-              <span className="font-mono tabular-nums">{formatScore(team.week16Score)}</span>
-              <span className="font-mono tabular-nums">{formatScore(team.week17Score)}</span>
-              <span className="font-mono font-bold tabular-nums">{formatScore(team.score)}</span>
+              <span className="tabular-nums">{formatScore(team.week16Score)}</span>
+              <span className="tabular-nums">{formatScore(team.week17Score)}</span>
+              <span className="font-bold tabular-nums">{formatScore(team.score)}</span>
             </button>
           )
         })}

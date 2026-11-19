@@ -18,8 +18,8 @@ export default defineConfig({
         name: 'Madtown\'s Finest Fantasy Football League',
         short_name: 'Madtown\'s Finest',
         description: 'Madtown\'s Finest Fantasy Football League - Established 2012. Track standings with our unique \'vs everyone\' scoring format.',
-        theme_color: '#000000',
-        background_color: '#ffffff',
+        theme_color: '#f5f5f7',
+        background_color: '#f5f5f7',
         display: 'standalone',
         scope: '/',
         start_url: '/'
