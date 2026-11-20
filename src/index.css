@@ -169,7 +169,6 @@
 .app-shell {
   position: relative;
   isolation: isolate;
-  overflow: clip;
   background: var(--background);
 }
 
