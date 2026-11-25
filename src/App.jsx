@@ -31,6 +31,7 @@ import {
 import WeeklyStandings from './components/WeeklyStandings'
 import OverallStandings from './components/OverallStandings'
 import PlayoffBracket from './components/PlayoffBracket'
+import TeamPage from './components/TeamPage'
 import { useTeams } from './hooks/useTeams'
 import { useNetworkStatus } from './hooks/useNetworkStatus'
 import { useCurrentWeek } from './hooks/useCurrentWeek'
@@ -53,6 +54,12 @@ import {
   rosterIdFromTeamSelection,
   teamSelectionValue,
 } from './lib/team-names'
+import {
+  buildStandingsRouteUrl,
+  buildTeamRouteUrl,
+  getTeamRouteRosterId,
+  TEAM_ROUTE_HISTORY_KEY,
+} from './lib/team-route'
 
 const SYSTEM_THEME_QUERY = '(prefers-color-scheme: dark)'
 
@@ -223,6 +230,9 @@ function App() {
 
   const [selectedRosterId, setSelectedRosterId] = useState(null)
   const [activeView, setActiveView] = useState(null)
+  const [teamRosterId, setTeamRosterId] = useState(() => (
+    typeof window === 'undefined' ? null : getTeamRouteRosterId(window.location)
+  ))
 
   const { teams, loading: teamsLoading, error: teamsError } = useTeams()
 
@@ -250,6 +260,15 @@ function App() {
     }
   }, [selectedRosterId, teams, teamsLoading, teamsError])
 
+  useEffect(() => {
+    const handlePopState = () => {
+      setTeamRosterId(getTeamRouteRosterId(window.location))
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
   // Apply the resolved appearance and team palette while retaining both preferences.
   useEffect(() => {
     const root = window.document.documentElement
@@ -275,6 +294,36 @@ function App() {
     }
   }
 
+  const openTeamPage = (rosterId) => {
+    const nextRosterId = String(rosterId)
+    if (teamRosterId === nextRosterId) return
+
+    window.history.pushState(
+      {
+        ...(window.history.state ?? {}),
+        [TEAM_ROUTE_HISTORY_KEY]: true,
+      },
+      '',
+      buildTeamRouteUrl(window.location, nextRosterId),
+    )
+    setTeamRosterId(nextRosterId)
+    window.scrollTo(0, 0)
+  }
+
+  const closeTeamPage = () => {
+    if (window.history.state?.[TEAM_ROUTE_HISTORY_KEY]) {
+      window.history.back()
+      return
+    }
+
+    window.history.replaceState(
+      window.history.state,
+      '',
+      buildStandingsRouteUrl(window.location),
+    )
+    setTeamRosterId(null)
+  }
+
   const showPlayoffs = displayWeek >= playoffWeekStart
   const resolvedActiveView = activeView === 'playoffs' && !showPlayoffs
     ? 'weekly'
@@ -297,22 +346,24 @@ function App() {
                 </div>
               </div>
 
-              <TabsList
-                aria-label="Standings views"
-                className="desktop-nav hidden h-11 items-center gap-1 bg-white/25 p-1 backdrop-blur-xl md:flex dark:bg-black/15"
-              >
-                <TabsTrigger value="weekly" className="desktop-nav-item">
-                  Weekly
-                </TabsTrigger>
-                <TabsTrigger value="overall" className="desktop-nav-item">
-                  Overall
-                </TabsTrigger>
-                {showPlayoffs && (
-                  <TabsTrigger value="playoffs" className="desktop-nav-item">
-                    Playoffs
+              {!teamRosterId && (
+                <TabsList
+                  aria-label="Standings views"
+                  className="desktop-nav hidden h-11 items-center gap-1 bg-white/25 p-1 backdrop-blur-xl md:flex dark:bg-black/15"
+                >
+                  <TabsTrigger value="weekly" className="desktop-nav-item">
+                    Weekly
                   </TabsTrigger>
-                )}
-              </TabsList>
+                  <TabsTrigger value="overall" className="desktop-nav-item">
+                    Overall
+                  </TabsTrigger>
+                  {showPlayoffs && (
+                    <TabsTrigger value="playoffs" className="desktop-nav-item">
+                      Playoffs
+                    </TabsTrigger>
+                  )}
+                </TabsList>
+              )}
 
               <div className="hidden md:block">
                 <SettingsMenu
@@ -333,7 +384,7 @@ function App() {
             </div>
           </header>
 
-          <main className="app-container px-3 pt-3 pb-[calc(7rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 md:pb-16">
+          <main className={`app-container px-3 pt-3 sm:px-6 sm:pt-6 md:pb-16 ${teamRosterId ? 'pb-12' : 'pb-[calc(7rem+env(safe-area-inset-bottom))]'}`}>
             <div className="status-row app-status-row" aria-live="polite">
               {leagueContextLoading && (
                 <div className="status-chip">
@@ -371,83 +422,93 @@ function App() {
               )}
             </div>
 
-            <div className="content-stage">
-              <TabsContent value="weekly" className="mt-0">
-                {leagueReady && (
-                  <WeeklyStandings
-                    selectedRosterId={selectedRosterId}
-                    onRosterSelect={setSelectedRosterId}
-                  />
-                )}
-              </TabsContent>
+            {teamRosterId ? (
+              <div className="content-stage">
+                <TeamPage rosterId={teamRosterId} onBack={closeTeamPage} />
+              </div>
+            ) : (
+              <>
+                <div className="content-stage">
+                  <TabsContent value="weekly" className="mt-0">
+                    {leagueReady && (
+                      <WeeklyStandings
+                        selectedRosterId={selectedRosterId}
+                        onRosterSelect={setSelectedRosterId}
+                        onTeamOpen={openTeamPage}
+                      />
+                    )}
+                  </TabsContent>
 
-              {showPlayoffs && (
-                <TabsContent value="playoffs" className="mt-0">
-                  <PlayoffBracket
-                    selectedRosterId={selectedRosterId}
-                    onRosterSelect={setSelectedRosterId}
-                  />
-                </TabsContent>
-              )}
+                  {showPlayoffs && (
+                    <TabsContent value="playoffs" className="mt-0">
+                      <PlayoffBracket
+                        selectedRosterId={selectedRosterId}
+                        onRosterSelect={setSelectedRosterId}
+                      />
+                    </TabsContent>
+                  )}
 
-              <TabsContent value="overall" className="mt-0">
-                {leagueReady && (
-                  <OverallStandings
-                    selectedRosterId={selectedRosterId}
-                    onRosterSelect={setSelectedRosterId}
-                  />
-                )}
-              </TabsContent>
-            </div>
+                  <TabsContent value="overall" className="mt-0">
+                    {leagueReady && (
+                      <OverallStandings
+                        selectedRosterId={selectedRosterId}
+                        onRosterSelect={setSelectedRosterId}
+                        onTeamOpen={openTeamPage}
+                      />
+                    )}
+                  </TabsContent>
+                </div>
 
-            <nav
-              aria-label="Primary navigation"
-              className={`mobile-nav fixed left-1/2 z-40 grid w-[calc(100%-2rem)] max-w-md -translate-x-1/2 gap-1 overflow-hidden rounded-full border bg-card/90 p-1.5 shadow-lg backdrop-blur-xl md:hidden ${showPlayoffs ? 'grid-cols-4' : 'grid-cols-3'}`}
-              style={{ bottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
-            >
-              <TabsList
-                aria-label="Standings views"
-                className={`grid h-auto w-full gap-1 bg-transparent p-0 ${showPlayoffs ? 'col-span-3 grid-cols-3' : 'col-span-2 grid-cols-2'}`}
-              >
-                <TabsTrigger
-                  value="weekly"
-                  className="min-h-15 flex-col gap-1 rounded-full px-2 py-1.5 text-sm leading-none hover:bg-accent hover:text-accent-foreground data-[state=active]:bg-accent data-[state=active]:text-accent-foreground"
+                <nav
+                  aria-label="Primary navigation"
+                  className={`mobile-nav fixed left-1/2 z-40 grid w-[calc(100%-2rem)] max-w-md -translate-x-1/2 gap-1 overflow-hidden rounded-full border bg-card/90 p-1.5 shadow-lg backdrop-blur-xl md:hidden ${showPlayoffs ? 'grid-cols-4' : 'grid-cols-3'}`}
+                  style={{ bottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
                 >
-                  <TrendingUpDown className="h-5 w-5" aria-hidden="true" />
-                  <span>Weekly</span>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="overall"
-                  className="min-h-15 flex-col gap-1 rounded-full px-2 py-1.5 text-sm leading-none hover:bg-accent hover:text-accent-foreground data-[state=active]:bg-accent data-[state=active]:text-accent-foreground"
-                >
-                  <Medal className="h-5 w-5" aria-hidden="true" />
-                  <span>Overall</span>
-                </TabsTrigger>
-                {showPlayoffs && (
-                  <TabsTrigger
-                    value="playoffs"
-                    className="min-h-15 flex-col gap-1 rounded-full px-2 py-1.5 text-sm leading-none hover:bg-accent hover:text-accent-foreground data-[state=active]:bg-accent data-[state=active]:text-accent-foreground"
+                  <TabsList
+                    aria-label="Standings views"
+                    className={`grid h-auto w-full gap-1 bg-transparent p-0 ${showPlayoffs ? 'col-span-3 grid-cols-3' : 'col-span-2 grid-cols-2'}`}
                   >
-                    <Trophy className="h-5 w-5" aria-hidden="true" />
-                    <span>Playoffs</span>
-                  </TabsTrigger>
-                )}
-              </TabsList>
+                    <TabsTrigger
+                      value="weekly"
+                      className="min-h-15 flex-col gap-1 rounded-full px-2 py-1.5 text-sm leading-none hover:bg-accent hover:text-accent-foreground data-[state=active]:bg-accent data-[state=active]:text-accent-foreground"
+                    >
+                      <TrendingUpDown className="h-5 w-5" aria-hidden="true" />
+                      <span>Weekly</span>
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="overall"
+                      className="min-h-15 flex-col gap-1 rounded-full px-2 py-1.5 text-sm leading-none hover:bg-accent hover:text-accent-foreground data-[state=active]:bg-accent data-[state=active]:text-accent-foreground"
+                    >
+                      <Medal className="h-5 w-5" aria-hidden="true" />
+                      <span>Overall</span>
+                    </TabsTrigger>
+                    {showPlayoffs && (
+                      <TabsTrigger
+                        value="playoffs"
+                        className="min-h-15 flex-col gap-1 rounded-full px-2 py-1.5 text-sm leading-none hover:bg-accent hover:text-accent-foreground data-[state=active]:bg-accent data-[state=active]:text-accent-foreground"
+                      >
+                        <Trophy className="h-5 w-5" aria-hidden="true" />
+                        <span>Playoffs</span>
+                      </TabsTrigger>
+                    )}
+                  </TabsList>
 
-              <SettingsMenu
-                favoriteNflTeam={favoriteNflTeam}
-                isDarkMode={isDarkMode}
-                selectedRosterId={selectedRosterId}
-                setSelectedRosterId={setSelectedRosterId}
-                setFavoriteNflTeam={setFavoriteNflTeam}
-                setThemePreference={setThemePreference}
-                teams={teams}
-                teamsError={teamsError}
-                teamsLoading={teamsLoading}
-                themePreference={themePreference}
-                triggerClassName="min-h-15 h-auto flex-col gap-1 rounded-full border-0 bg-transparent px-2 py-1.5 text-sm leading-none text-muted-foreground shadow-none data-[state=open]:bg-accent data-[state=open]:text-accent-foreground data-[state=open]:shadow [&_svg]:size-5"
-              />
-            </nav>
+                  <SettingsMenu
+                    favoriteNflTeam={favoriteNflTeam}
+                    isDarkMode={isDarkMode}
+                    selectedRosterId={selectedRosterId}
+                    setSelectedRosterId={setSelectedRosterId}
+                    setFavoriteNflTeam={setFavoriteNflTeam}
+                    setThemePreference={setThemePreference}
+                    teams={teams}
+                    teamsError={teamsError}
+                    teamsLoading={teamsLoading}
+                    themePreference={themePreference}
+                    triggerClassName="min-h-15 h-auto flex-col gap-1 rounded-full border-0 bg-transparent px-2 py-1.5 text-sm leading-none text-muted-foreground shadow-none data-[state=open]:bg-accent data-[state=open]:text-accent-foreground data-[state=open]:shadow [&_svg]:size-5"
+                  />
+                </nav>
+              </>
+            )}
           </main>
         </Tabs>
       </div>

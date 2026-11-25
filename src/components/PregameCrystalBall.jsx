@@ -61,7 +61,7 @@ function getEffectiveBackgroundColor(element) {
 }
 
 export default function PregameCrystalBall({
-  onRosterSelect,
+  onTeamOpen,
   reducedMotion,
   selectedRosterId,
   teams,
@@ -508,7 +508,7 @@ export default function PregameCrystalBall({
                       ease: 'easeInOut',
                       repeat: Infinity,
                     }}
-                    onClick={() => onRosterSelect?.(isSelected ? null : team.rosterId)}
+                    onClick={() => onTeamOpen?.(team.rosterId)}
                   >
                     <span className="line-clamp-2 block text-[0.6875rem] font-semibold leading-tight">
                       {team.teamName}

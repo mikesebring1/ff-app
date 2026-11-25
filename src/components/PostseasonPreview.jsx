@@ -2,13 +2,13 @@ import { Trophy } from 'lucide-react'
 import { useOverallStandings } from '../hooks/useOverallStandings'
 import { buildPostseasonPreview } from '../lib/postseason'
 
-function PreviewTeam({ team, selectedRosterId, onRosterSelect }) {
+function PreviewTeam({ team, selectedRosterId, onTeamOpen }) {
   const selected = selectedRosterId === String(team.id)
 
   return (
     <button
       type="button"
-      onClick={() => onRosterSelect?.(String(team.id))}
+      onClick={() => onTeamOpen?.(String(team.id))}
       className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-accent/60 ${selected ? 'bg-accent ring-2 ring-primary/60' : ''}`}
     >
       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">
@@ -25,7 +25,7 @@ function PreviewTeam({ team, selectedRosterId, onRosterSelect }) {
 }
 
 export default function PostseasonPreview({
-  onRosterSelect,
+  onTeamOpen,
   openingWeek,
   selectedRosterId,
   week,
@@ -70,7 +70,7 @@ export default function PostseasonPreview({
                 key={team.id}
                 team={team}
                 selectedRosterId={selectedRosterId}
-                onRosterSelect={onRosterSelect}
+                onTeamOpen={onTeamOpen}
               />
             ))}
           </div>
@@ -87,7 +87,7 @@ export default function PostseasonPreview({
                 key={team.id}
                 team={team}
                 selectedRosterId={selectedRosterId}
-                onRosterSelect={onRosterSelect}
+                onTeamOpen={onTeamOpen}
               />
             ))}
           </div>

@@ -8,7 +8,7 @@ import { useWeeklyStandings } from '../hooks/useWeeklyStandings'
 import { buildLiveOverallStandings } from '../lib/live-overall-standings'
 import { findToiletBowlQualifierIds } from '../lib/toilet-bowl'
 
-export default function OverallStandings({ selectedRosterId, onRosterSelect }) {
+export default function OverallStandings({ selectedRosterId, onRosterSelect, onTeamOpen }) {
   const [liveSelection, setLiveSelection] = useState({ key: null, enabled: false })
   const { data: leagueContext } = useLeagueContext()
   const {
@@ -157,9 +157,13 @@ export default function OverallStandings({ selectedRosterId, onRosterSelect }) {
                   </div>
                   <div className="min-w-0">
                     <div>
-                      <div className="truncate text-sm font-semibold tracking-tight">
+                      <button
+                        type="button"
+                        onClick={() => onTeamOpen?.(String(team.id))}
+                        className="block max-w-full truncate rounded text-left text-sm font-semibold tracking-tight hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
                         {team.teamName}
-                      </div>
+                      </button>
                       <div className="text-xs text-muted-foreground">
                         {team.overallRecord}, {team.earnings}
                       </div>
