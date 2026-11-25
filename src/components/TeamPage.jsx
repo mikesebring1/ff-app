@@ -114,7 +114,7 @@ export default function TeamPage({ rosterId, onBack }) {
                 players={team.starters}
                 showProjectedPoints
               />
-              <RosterSection title="Bench" players={team.bench} />
+              <RosterSection title="Bench" players={team.bench} showProjectedPoints />
               <RosterSection title="Injured reserve" players={team.reserve} />
               <RosterSection title="Taxi squad" players={team.taxi} />
             </div>
