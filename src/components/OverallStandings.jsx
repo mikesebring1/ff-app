@@ -135,10 +135,10 @@ export default function OverallStandings({ selectedRosterId, onRosterSelect }) {
 
           {!overallLoading && !overallError && (
             <div className="space-y-0">
-              {displayedStandings.map((team) => (
+              {displayedStandings.map((team, index) => (
                 <div
                   key={team.id}
-                  className={`grid grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center border-b px-2 py-4 transition-colors last:border-b-0 sm:px-4 ${getHighlightStyle(team.id)}`}
+                  className={`grid grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center border-b px-2 py-4 transition-colors last:border-b-0 sm:px-4 ${index === 4 ? 'border-t-4 border-t-foreground' : ''} ${getHighlightStyle(team.id)}`}
                 >
                   <div className="flex items-center">
                     <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-xs font-bold tabular-nums text-muted-foreground">
