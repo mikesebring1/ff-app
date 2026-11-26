@@ -175,7 +175,7 @@ class TeamSummaryTests(unittest.TestCase):
             )
 
         self.assertTrue(result["cooldown_active"])
-        self.assertEqual(result["regenerate_after"], 1_900)
+        self.assertEqual(result["regenerate_after"], 87_400)
         openrouter.assert_not_called()
 
 

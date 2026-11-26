@@ -104,15 +104,15 @@ test('validates team summaries and tracks the server cooldown', () => {
       strategy: ['Prioritize upside'],
     },
     generated_at: 1_000,
-    regenerate_after: 1_900,
+    regenerate_after: 87_400,
     server_time: 1_100,
     cached: true,
   })
 
   assert.equal(response.summary.identity, 'A deep receiving team.')
-  assert.equal(teamSummaryCooldownSeconds(response, response.receivedAt), 800)
+  assert.equal(teamSummaryCooldownSeconds(response, response.receivedAt), 86_300)
   assert.equal(
-    teamSummaryCooldownSeconds(response, response.receivedAt + 800_000),
+    teamSummaryCooldownSeconds(response, response.receivedAt + 86_300_000),
     0,
   )
 })

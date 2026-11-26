@@ -58,7 +58,7 @@ Do not put the key in a Vite environment variable, source file, CDK context file
 npx cdk deploy InfrastructureStack -c openRouterModel=google/gemini-2.5-flash
 ```
 
-`POST /team-summary` accepts only an active-league `roster_id`. It caches structured summaries in `ff-league-data`, uses a short conditional generation lease to prevent duplicate concurrent model calls, limits the Lambda to two concurrent executions, and permits one explicit regeneration per team every fifteen minutes. CORS is not authentication, so these server-side controls remain necessary even though browser origins are allowlisted.
+`POST /team-summary` accepts only an active-league `roster_id`. It caches structured summaries in `ff-league-data`, uses a short conditional generation lease to prevent duplicate concurrent model calls, limits the Lambda to two concurrent executions, and permits one explicit regeneration per team every 24 hours. CORS is not authentication, so these server-side controls remain necessary even though browser origins are allowlisted.
 
 ## Automation and recovery
 

@@ -36,7 +36,7 @@ The CDK stack in `infra/lib/infrastructure-stack.ts` defines:
 - An hourly EventBridge rule
 - Shared requests, utility, and standings-calculation Lambda layers
 
-There is no ECS, Fargate, ECR, VPC, polling-state table, admin key, or public standings mutation endpoint. The public `POST /team-summary` route can only generate cached roster analysis for a team in the active league. It reads the OpenRouter key from AWS Secrets Manager, limits Lambda concurrency, serializes generation with a DynamoDB lease, and enforces a fifteen-minute per-team regeneration cooldown.
+There is no ECS, Fargate, ECR, VPC, polling-state table, admin key, or public standings mutation endpoint. The public `POST /team-summary` route can only generate cached roster analysis for a team in the active league. It reads the OpenRouter key from AWS Secrets Manager, limits Lambda concurrency, serializes generation with a DynamoDB lease, and enforces a 24-hour per-team regeneration cooldown.
 
 ## Data flow
 

@@ -21,6 +21,10 @@ function SummaryList({ items }) {
 
 function cooldownLabel(seconds) {
   if (seconds <= 0) return 'Regenerate'
+  if (seconds >= 60 * 60) {
+    const hours = Math.ceil(seconds / (60 * 60))
+    return `Regenerate in ${hours}h`
+  }
   const minutes = Math.ceil(seconds / 60)
   return `Regenerate in ${minutes}m`
 }
