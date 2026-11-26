@@ -8,9 +8,9 @@ A mobile-first fantasy football PWA for a ten-team "vs everyone" league. Each te
 - Sleeper API for league, roster, matchup, player, projection, and NFL-state data
 - AWS CDK infrastructure with API Gateway, Lambda, EventBridge, and three retained DynamoDB tables
 - Vercel for frontend hosting
-- OpenRouter for cached, on-demand team roster analysis
+- OpenRouter for cached team roster analysis and finalized weekly reviews
 
-The weekly screen calculates live standings in the browser from Sleeper data. During an active regular-season week, the Overall screen can layer those provisional results onto the last finalized overall standings with its Live switch. A visible, online client polls only the current week's matchup scores every ten seconds; roster, user, and projection metadata use longer caches. Player display metadata comes from a compact backend map cached by the browser for one day, so devices never download Sleeper's full player directory. Successive live player-score increases flash green, decreases flash red, and leaderboard rows animate when their rank changes. Initial, cached, historical, and context-switch data establish a baseline without flashing, and reduced-motion preferences disable these effects. An hourly week-finalizer Lambda refreshes the player map and league metadata about weekly, synchronizes current Sleeper team names into overall standings, detects every completed unprocessed regular-season week, writes canonical weekly and overall standings, and runs playoff projections. Every newly finalized week forces a league sync, while an idle season syncs at least once every seven days. If the app was offline or undeployed, the next run catches up all missing weeks. Read endpoints expose league context, player metadata, and persisted standings; a separate cooldown-protected endpoint generates and caches team analysis without exposing the OpenRouter key to browsers.
+The weekly screen calculates live standings in the browser from Sleeper data. Its Review tab generates one permanent recap for each selected finalized regular-season week, using stored scores and lineup decisions to assess every team's performance, starter choices, sitters, and eligible optimal lineup. During an active regular-season week, the Overall screen can layer provisional results onto the last finalized overall standings with its Live switch. A visible, online client polls only the current week's matchup scores every ten seconds; roster, user, and projection metadata use longer caches. Player display metadata comes from a compact backend map cached by the browser for one day, so devices never download Sleeper's full player directory. Successive live player-score increases flash green, decreases flash red, and leaderboard rows animate when their rank changes. Initial, cached, historical, and context-switch data establish a baseline without flashing, and reduced-motion preferences disable these effects. An hourly week-finalizer Lambda refreshes the player map and league metadata about weekly, synchronizes current Sleeper team names into overall standings, detects every completed unprocessed regular-season week, writes canonical weekly and overall standings, and runs playoff projections. Every newly finalized week forces a league sync, while an idle season syncs at least once every seven days. If the app was offline or undeployed, the next run catches up all missing weeks. OpenRouter calls remain server-side so the API key is never exposed to browsers.
 
 ## Local development
 
@@ -21,7 +21,7 @@ pnpm dev
 
 `VITE_API_URL` is required; the frontend has no built-in API Gateway fallback. Copy `.env.example` to `.env.local` for development and set it to the deployed stack's `ApiUrl` output. Set the same value in Vercel and redeploy the frontend after an infrastructure replacement changes the URL.
 
-Team summaries are generated server-side so the OpenRouter API key is never included in the browser bundle. See `infra/README.md` for the required Secrets Manager setup and deployment order.
+Team summaries and weekly reviews are generated server-side so the OpenRouter API key is never included in the browser bundle. See `infra/README.md` for the required Secrets Manager setup and deployment order.
 
 Useful checks:
 
@@ -43,7 +43,7 @@ Development builds expose Sleeper request instrumentation in the browser console
 
 - `src/` — frontend application
 - `infra/lib/` — CDK stack
-- `infra/lambda/` — read API, team summary, week finalizer, and playoff simulation handlers
+- `infra/lambda/` — read API, AI analysis, week finalizer, and playoff simulation handlers
 - `infra/layers/` — Lambda layer sources
 - `packages/ff-standings/` — shared standings calculation package
 

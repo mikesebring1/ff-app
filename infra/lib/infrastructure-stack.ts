@@ -235,6 +235,33 @@ export class InfrastructureStack extends cdk.Stack {
       layers: [requestsLayer, commonUtilsLayer]
     });
 
+    const weeklyReviewLogGroup = new logs.LogGroup(this, 'WeeklyReviewLogGroup', {
+      logGroupName: '/aws/lambda/ff-weekly-review',
+      retention: logs.RetentionDays.ONE_WEEK,
+      removalPolicy: cdk.RemovalPolicy.DESTROY
+    });
+
+    const weeklyReviewFunction = new lambda.Function(this, 'WeeklyReviewFunction', {
+      functionName: 'ff-weekly-review',
+      runtime: lambda.Runtime.PYTHON_3_11,
+      handler: 'lambda_function.lambda_handler',
+      code: lambda.Code.fromAsset('lambda/weekly-review', {
+        exclude: pythonAssetExcludes
+      }),
+      environment: {
+        ...leagueContextEnvironment,
+        LEAGUE_DATA_TABLE: leagueDataTable.tableName,
+        WEEKLY_STANDINGS_TABLE: weeklyStandingsTable.tableName,
+        OPENROUTER_SECRET_ID: openRouterSecret.secretName,
+        OPENROUTER_MODEL: this.node.tryGetContext('openRouterModel') || 'google/gemini-2.5-flash'
+      },
+      timeout: cdk.Duration.seconds(120),
+      memorySize: 512,
+      reservedConcurrentExecutions: 1,
+      logGroup: weeklyReviewLogGroup,
+      layers: [requestsLayer, commonUtilsLayer]
+    });
+
     // Grant DynamoDB permissions to Lambda functions
 
     weeklyStandingsTable.grant(
@@ -266,6 +293,13 @@ export class InfrastructureStack extends cdk.Stack {
     );
     overallStandingsTable.grant(teamSummaryFunction, 'dynamodb:GetItem');
     openRouterSecret.grantRead(teamSummaryFunction);
+    leagueDataTable.grant(
+      weeklyReviewFunction,
+      'dynamodb:GetItem',
+      'dynamodb:PutItem'
+    );
+    weeklyStandingsTable.grant(weeklyReviewFunction, 'dynamodb:Query');
+    openRouterSecret.grantRead(weeklyReviewFunction);
 
     weeklyStandingsTable.grant(monteCarloFunction, 'dynamodb:Query');
     overallStandingsTable.grant(
@@ -317,6 +351,11 @@ export class InfrastructureStack extends cdk.Stack {
     const teamSummaryResource = api.root.addResource('team-summary');
     teamSummaryResource.addMethod('POST', teamSummaryIntegration);
     teamSummaryResource.addMethod('OPTIONS', teamSummaryIntegration);
+
+    const weeklyReviewIntegration = new apigateway.LambdaIntegration(weeklyReviewFunction);
+    const weeklyReviewResource = api.root.addResource('weekly-review');
+    weeklyReviewResource.addMethod('POST', weeklyReviewIntegration);
+    weeklyReviewResource.addMethod('OPTIONS', weeklyReviewIntegration);
 
     // Stack Outputs
     new cdk.CfnOutput(this, 'ApiUrl', {
