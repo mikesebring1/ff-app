@@ -85,23 +85,21 @@ export default function TeamSummary({ rosterId }) {
   return (
     <Card className="overflow-hidden">
       <CardContent className="space-y-6 p-5 sm:p-6">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" aria-hidden="true" />
-              <h2 className="text-lg font-semibold">Team summary</h2>
-            </div>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              {summary.identity}
-            </p>
+        <div className="relative">
+          <div className="flex items-center gap-2 pr-10">
+            <Sparkles className="h-5 w-5 text-primary" aria-hidden="true" />
+            <h2 className="text-lg font-semibold">Team summary</h2>
           </div>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            {summary.identity}
+          </p>
           <button
             type="button"
             onClick={() => regenerate()}
             disabled={isRegenerating || cooldownSeconds > 0}
             aria-label={isRegenerating ? 'Regenerating team summary' : cooldownLabel(cooldownSeconds)}
             title={isRegenerating ? 'Regenerating team summary' : cooldownLabel(cooldownSeconds)}
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border bg-background transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="absolute right-0 top-0 inline-flex h-8 w-8 items-center justify-center rounded-full border bg-background transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <RefreshCw className={`h-4 w-4 ${isRegenerating ? 'animate-spin' : ''}`} aria-hidden="true" />
           </button>
