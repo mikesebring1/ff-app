@@ -75,7 +75,7 @@ def get_cors_headers(origin=None):
     headers = {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS'
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
     }
     if is_allowed_cors_origin(origin):
         headers['Access-Control-Allow-Origin'] = origin

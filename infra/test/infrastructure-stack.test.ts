@@ -26,8 +26,8 @@ describe('streamlined infrastructure', () => {
     expect(rendered).not.toContain('ff-polling-state');
   });
 
-  test('schedules the finalizer and keeps public API read-only', () => {
-    template.resourceCountIs('AWS::Lambda::Function', 3);
+  test('schedules the finalizer and isolates on-demand team analysis', () => {
+    template.resourceCountIs('AWS::Lambda::Function', 4);
     template.hasResourceProperties('AWS::Events::Rule', {
       ScheduleExpression: 'rate(1 hour)',
       State: 'ENABLED',
@@ -46,17 +46,23 @@ describe('streamlined infrastructure', () => {
     }));
 
     const functions = template.findResources('AWS::Lambda::Function');
+    const summaryFunctions = Object.values(functions).filter(
+      (resource: any) => resource.Properties.FunctionName === 'ff-team-summary'
+    ) as any[];
+    expect(summaryFunctions).toHaveLength(1);
+    expect(summaryFunctions[0].Properties.ReservedConcurrentExecutions).toBe(2);
     expect(
-      Object.values(functions).every(
-        (resource: any) => resource.Properties.ReservedConcurrentExecutions === undefined
-      )
+      Object.values(functions)
+        .filter((resource: any) => resource.Properties.FunctionName !== 'ff-team-summary')
+        .every((resource: any) => resource.Properties.ReservedConcurrentExecutions === undefined)
     ).toBe(true);
 
-    template.resourceCountIs('AWS::Logs::LogGroup', 3);
+    template.resourceCountIs('AWS::Logs::LogGroup', 4);
     for (const logGroupName of [
       '/aws/lambda/ff-week-finalizer',
       '/aws/lambda/ff-monte-carlo',
-      '/aws/lambda/ff-api-handler'
+      '/aws/lambda/ff-api-handler',
+      '/aws/lambda/ff-team-summary'
     ]) {
       template.hasResource('AWS::Logs::LogGroup', {
         DeletionPolicy: 'Delete',
@@ -75,9 +81,14 @@ describe('streamlined infrastructure', () => {
     const options = Object.values(methods).filter(
       (method: any) => method.Properties.HttpMethod === 'OPTIONS'
     );
-    expect(nonOptions).toHaveLength(4);
-    expect(nonOptions.every((method: any) => method.Properties.HttpMethod === 'GET')).toBe(true);
-    expect(options).toHaveLength(4);
+    expect(nonOptions).toHaveLength(5);
+    expect(
+      nonOptions.filter((method: any) => method.Properties.HttpMethod === 'GET')
+    ).toHaveLength(4);
+    expect(
+      nonOptions.filter((method: any) => method.Properties.HttpMethod === 'POST')
+    ).toHaveLength(1);
+    expect(options).toHaveLength(5);
     expect(
       Object.values(methods).every(
         (method: any) => method.Properties.Integration.Type === 'AWS_PROXY'
@@ -90,6 +101,9 @@ describe('streamlined infrastructure', () => {
     });
     template.hasResourceProperties('AWS::ApiGateway::Resource', {
       PathPart: 'players'
+    });
+    template.hasResourceProperties('AWS::ApiGateway::Resource', {
+      PathPart: 'team-summary'
     });
     template.hasResourceProperties('AWS::ApiGateway::Stage', Match.objectLike({
       MethodSettings: Match.arrayWith([
@@ -109,6 +123,17 @@ describe('streamlined infrastructure', () => {
         })
       })
     }));
+    template.hasResourceProperties('AWS::Lambda::Function', Match.objectLike({
+      FunctionName: 'ff-team-summary',
+      ReservedConcurrentExecutions: 2,
+      Environment: Match.objectLike({
+        Variables: Match.objectLike({
+          OPENROUTER_MODEL: 'google/gemini-2.5-flash',
+          OPENROUTER_SECRET_ID: Match.anyValue()
+        })
+      })
+    }));
+    expect(rendered).toContain('secretsmanager:GetSecretValue');
   });
 
   test('contains no retired polling or admin infrastructure', () => {

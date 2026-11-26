@@ -5,6 +5,7 @@ import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as logs from 'aws-cdk-lib/aws-logs';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import { Construct } from 'constructs';
 
 export class InfrastructureStack extends cdk.Stack {
@@ -49,6 +50,11 @@ export class InfrastructureStack extends cdk.Stack {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: cdk.RemovalPolicy.RETAIN
     });
+    const openRouterSecret = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      'OpenRouterSecret',
+      this.node.tryGetContext('openRouterSecretName') || 'ff/openrouter-api-key'
+    );
 
     // Shared Lambda Layers
     const requestsLayer = new lambda.LayerVersion(this, 'RequestsLayer', {
@@ -202,6 +208,33 @@ export class InfrastructureStack extends cdk.Stack {
       layers: [requestsLayer, commonUtilsLayer]
     });
 
+    const teamSummaryLogGroup = new logs.LogGroup(this, 'TeamSummaryLogGroup', {
+      logGroupName: '/aws/lambda/ff-team-summary',
+      retention: logs.RetentionDays.ONE_WEEK,
+      removalPolicy: cdk.RemovalPolicy.DESTROY
+    });
+
+    const teamSummaryFunction = new lambda.Function(this, 'TeamSummaryFunction', {
+      functionName: 'ff-team-summary',
+      runtime: lambda.Runtime.PYTHON_3_11,
+      handler: 'lambda_function.lambda_handler',
+      code: lambda.Code.fromAsset('lambda/team-summary', {
+        exclude: pythonAssetExcludes
+      }),
+      environment: {
+        ...leagueContextEnvironment,
+        LEAGUE_DATA_TABLE: leagueDataTable.tableName,
+        OVERALL_STANDINGS_TABLE: overallStandingsTable.tableName,
+        OPENROUTER_SECRET_ID: openRouterSecret.secretName,
+        OPENROUTER_MODEL: this.node.tryGetContext('openRouterModel') || 'google/gemini-2.5-flash'
+      },
+      timeout: cdk.Duration.seconds(90),
+      memorySize: 512,
+      reservedConcurrentExecutions: 2,
+      logGroup: teamSummaryLogGroup,
+      layers: [requestsLayer, commonUtilsLayer]
+    });
+
     // Grant DynamoDB permissions to Lambda functions
 
     weeklyStandingsTable.grant(
@@ -226,6 +259,13 @@ export class InfrastructureStack extends cdk.Stack {
     weeklyStandingsTable.grant(apiFunction, 'dynamodb:Query');
     overallStandingsTable.grant(apiFunction, 'dynamodb:Query');
     leagueDataTable.grant(apiFunction, 'dynamodb:GetItem');
+    leagueDataTable.grant(
+      teamSummaryFunction,
+      'dynamodb:GetItem',
+      'dynamodb:PutItem'
+    );
+    overallStandingsTable.grant(teamSummaryFunction, 'dynamodb:GetItem');
+    openRouterSecret.grantRead(teamSummaryFunction);
 
     weeklyStandingsTable.grant(monteCarloFunction, 'dynamodb:Query');
     overallStandingsTable.grant(
@@ -272,6 +312,11 @@ export class InfrastructureStack extends cdk.Stack {
     const playersResource = api.root.addResource('players');
     playersResource.addMethod('GET', apiIntegration);
     playersResource.addMethod('OPTIONS', apiIntegration);
+
+    const teamSummaryIntegration = new apigateway.LambdaIntegration(teamSummaryFunction);
+    const teamSummaryResource = api.root.addResource('team-summary');
+    teamSummaryResource.addMethod('POST', teamSummaryIntegration);
+    teamSummaryResource.addMethod('OPTIONS', teamSummaryIntegration);
 
     // Stack Outputs
     new cdk.CfnOutput(this, 'ApiUrl', {
