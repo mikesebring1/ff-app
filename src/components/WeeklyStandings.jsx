@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select"
 import { ChevronDown } from "lucide-react"
 import WeeklyStandingsChart from './WeeklyStandingsChart'
+import WeeklyReview from './WeeklyReview'
 import PregameCrystalBall from './PregameCrystalBall'
 import PostseasonPreview from './PostseasonPreview'
 import { useAvailableWeeks, useWeeklyStandings } from '../hooks/useWeeklyStandings'
@@ -62,6 +63,7 @@ function PlayerScore({ change, points, placeholderForZero = false }) {
 }
 
 export default function WeeklyStandings({ selectedRosterId, onRosterSelect, onTeamOpen }) {
+  const [activeTab, setActiveTab] = useState('standings')
   const [openItems, setOpenItems] = useState([])
   const [weekSelection, setWeekSelection] = useState({
     isManual: false,
@@ -159,7 +161,9 @@ export default function WeeklyStandings({ selectedRosterId, onRosterSelect, onTe
         <CardContent className="px-3 pt-4 sm:px-6 sm:pt-7">
           {/* Week Selector */}
           <div className="mb-4 flex items-end justify-between gap-3 px-1 sm:mb-6 sm:gap-4 sm:px-2">
-            <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Weekly standings</h2>
+            <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">
+              {activeTab === 'review' ? 'Weekly review' : 'Weekly standings'}
+            </h2>
             <Select
               value={selectedWeek}
               onValueChange={(week) => setWeekSelection({ isManual: true, week })}
@@ -177,6 +181,57 @@ export default function WeeklyStandings({ selectedRosterId, onRosterSelect, onTe
               </SelectContent>
             </Select>
           </div>
+
+          <div
+            role="tablist"
+            aria-label="Weekly details"
+            className="mb-5 grid grid-cols-2 rounded-2xl bg-muted/60 p-1 sm:mb-6"
+          >
+            {[
+              { id: 'standings', label: 'Standings' },
+              { id: 'review', label: 'Review' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                id={`weekly-${tab.id}-tab`}
+                aria-controls={`weekly-${tab.id}-panel`}
+                aria-selected={activeTab === tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`min-h-10 rounded-xl px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  activeTab === tab.id
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {activeTab === 'review' ? (
+            <div
+              role="tabpanel"
+              id="weekly-review-panel"
+              aria-labelledby="weekly-review-tab"
+              className="pb-5 sm:pb-6"
+            >
+              <WeeklyReview
+                week={selectedWeek}
+                isCompleted={Boolean(
+                  selectedWeekNumber > 0
+                  && selectedWeekNumber < Number(displayWeek)
+                  && selectedWeekNumber < Number(playoffWeekStart)
+                )}
+              />
+            </div>
+          ) : (
+            <div
+              role="tabpanel"
+              id="weekly-standings-panel"
+              aria-labelledby="weekly-standings-tab"
+            >
 
           {/* Auto-Refresh Toggle */}
           {isLivePolling && (
@@ -378,13 +433,17 @@ export default function WeeklyStandings({ selectedRosterId, onRosterSelect, onTe
               </LayoutGroup>
             </MotionConfig>
           )}
+            </div>
+          )}
         </CardContent>
       </Card>
       
-      <WeeklyStandingsChart
-        selectedRosterId={selectedRosterId}
-        onRosterSelect={onRosterSelect}
-      />
+      {activeTab === 'standings' && (
+        <WeeklyStandingsChart
+          selectedRosterId={selectedRosterId}
+          onRosterSelect={onRosterSelect}
+        />
+      )}
     </div>
   )
 }

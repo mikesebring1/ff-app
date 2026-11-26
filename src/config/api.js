@@ -13,6 +13,7 @@ export const apiConfig = {
     leagueContext: `${API_BASE_URL}/league-context`,
     players: `${API_BASE_URL}/players`,
     teamSummary: `${API_BASE_URL}/team-summary`,
+    weeklyReview: `${API_BASE_URL}/weekly-review`,
   }
 }
 
