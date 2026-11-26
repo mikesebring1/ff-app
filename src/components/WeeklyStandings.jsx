@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
 import { LayoutGroup, motion as Motion, MotionConfig, useReducedMotion } from 'motion/react'
+import * as AccordionPrimitive from '@radix-ui/react-accordion'
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
-  AccordionTrigger,
 } from "@/components/ui/accordion"
 import { Card, CardContent } from "@/components/ui/card"
 import {
@@ -61,7 +61,7 @@ function PlayerScore({ change, points, placeholderForZero = false }) {
   )
 }
 
-export default function WeeklyStandings({ selectedRosterId, onRosterSelect }) {
+export default function WeeklyStandings({ selectedRosterId, onRosterSelect, onTeamOpen }) {
   const [openItems, setOpenItems] = useState([])
   const [weekSelection, setWeekSelection] = useState({
     isManual: false,
@@ -198,14 +198,14 @@ export default function WeeklyStandings({ selectedRosterId, onRosterSelect }) {
 
           {!loading && !error && showPostseasonPreview ? (
             <PostseasonPreview
-              onRosterSelect={onRosterSelect}
+              onTeamOpen={onTeamOpen}
               selectedRosterId={selectedRosterId}
               openingWeek={playoffWeekStart}
               week={selectedWeekNumber}
             />
           ) : !loading && !error && showPregame ? (
             <PregameCrystalBall
-              onRosterSelect={onRosterSelect}
+              onTeamOpen={onTeamOpen}
               reducedMotion={reducedMotion}
               selectedRosterId={selectedRosterId}
               teams={pregameTeams}
@@ -267,28 +267,37 @@ export default function WeeklyStandings({ selectedRosterId, onRosterSelect }) {
                         transition={{ type: 'spring', stiffness: 420, damping: 36 }}
                       >
                         <AccordionItem value={team.id} className={`transition-colors ${highlight.className || ""}`}>
-                          <AccordionTrigger className="px-2 py-4 hover:bg-accent/35 hover:no-underline sm:px-4 [&>svg]:hidden">
-                            <div className="flex items-center justify-between w-full">
-                              <div className="flex items-center gap-2">
+                          <div className="flex items-stretch transition-colors hover:bg-accent/35">
+                            <AccordionPrimitive.Header className="flex shrink-0">
+                              <AccordionPrimitive.Trigger
+                                aria-label={`${openItems.includes(team.id) ? 'Hide' : 'Show'} ${team.teamName} weekly lineup`}
+                                className="flex items-center gap-2 px-2 py-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:pl-4"
+                              >
                                 <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${openItems.includes(team.id) ? 'rotate-180' : ''}`} />
                                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold tabular-nums text-muted-foreground">
                                   {team.rank}
                                 </span>
-                                <div className="min-w-0 text-left">
-                                  <div className="truncate font-semibold tracking-tight">
-                                    {team.teamName}
-                                  </div>
-                                  <div className="text-sm text-muted-foreground">
-                                    {team.record}
-                                  </div>
-                                </div>
-                              </div>
+                              </AccordionPrimitive.Trigger>
+                            </AccordionPrimitive.Header>
+                            <button
+                              type="button"
+                              onClick={() => onTeamOpen?.(String(team.id))}
+                              className="min-w-0 flex-1 py-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                            >
+                              <span className="block truncate font-semibold tracking-tight hover:underline">
+                                {team.teamName}
+                              </span>
+                              <span className="block text-sm text-muted-foreground">
+                                {team.record}
+                              </span>
+                            </button>
+                            <div className="flex shrink-0 items-center pr-2 sm:pr-4">
                               <TeamScore
                                 points={team.points}
                                 projectedTotal={team.projectedTotal}
                               />
                             </div>
-                          </AccordionTrigger>
+                          </div>
                           <AccordionContent>
                             <div className="px-2 sm:px-4 pb-2 sm:pb-4">
                               <div className="bg-muted rounded-lg p-2 sm:p-4">
