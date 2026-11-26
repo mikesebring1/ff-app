@@ -30,12 +30,13 @@ The CDK stack in `infra/lib/infrastructure-stack.ts` defines:
 
 - Three retained on-demand DynamoDB tables
 - One read-only API Lambda and API Gateway
+- One on-demand OpenRouter team-summary Lambda
 - One scheduled week-finalizer Lambda
 - One Monte Carlo playoff Lambda
 - An hourly EventBridge rule
 - Shared requests, utility, and standings-calculation Lambda layers
 
-There is no ECS, Fargate, ECR, VPC, polling-state table, admin key, or public mutation endpoint.
+There is no ECS, Fargate, ECR, VPC, polling-state table, admin key, or public standings mutation endpoint. The public `POST /team-summary` route can only generate cached roster analysis for a team in the active league. It reads the OpenRouter key from AWS Secrets Manager, limits Lambda concurrency, serializes generation with a DynamoDB lease, and enforces a fifteen-minute per-team regeneration cooldown.
 
 ## Data flow
 
@@ -45,6 +46,7 @@ There is no ECS, Fargate, ECR, VPC, polling-state table, admin key, or public mu
 - Finalization stores a raw matchup snapshot, recalculates canonical weekly and overall standings, runs Monte Carlo projections, and only then marks the week complete.
 - League syncs patch current Sleeper team names onto existing overall standings without changing records, points, earnings, or playoff percentages.
 - The finalizer refreshes a compact active non-kicker player map about once a week, including during Week 1, and the frontend reads it through `/players` with a one-day cache.
+- Team pages request structured identity, strengths, gaps, free-agent targets, and strategy from `/team-summary`. The summary Lambda assembles trusted current Sleeper, projection, player-map, and standings context, filters model targets back to the supplied free-agent candidates, and stores summaries in `ff-league-data`.
 - A conditional season-wide lease serializes finalizer runs, while per-week leases track completion and retries. Failed work remains retryable, and an IAM-authenticated direct Lambda invocation can force a completed week to reprocess.
 - Finalizer job records and league metadata live in `ff-league-data`; no separate state table is needed.
 
@@ -56,5 +58,6 @@ There is no ECS, Fargate, ECR, VPC, polling-state table, admin key, or public mu
 - Milestones 2 through 4 are deployed. Milestone 5 implementation is complete; its system theme preference and current Sleeper team names await frontend deployment.
 - The first automatic Week 1 finalization remains pending until Sleeper advances to Week 2.
 - `VITE_API_URL` is required. Use the deployed stack's `ApiUrl` output locally and in Vercel; there is no source-code fallback.
+- Team summaries require an existing `ff/openrouter-api-key` Secrets Manager secret. The model defaults to `google/gemini-2.5-flash` and can be changed with the `openRouterModel` CDK context value.
 
 Treat generated CDK output, TypeScript emit, Python bytecode, setuptools build output, and package metadata as disposable. They are ignored and should not be committed.

@@ -7,6 +7,10 @@ import {
   getTeamRouteRosterId,
 } from '../src/lib/team-route.js'
 import { buildTeamRoster } from '../src/lib/team-roster.js'
+import {
+  parseTeamSummaryResponse,
+  teamSummaryCooldownSeconds,
+} from '../src/lib/team-summary.js'
 
 test('team routes preserve other query parameters and the hash', () => {
   const location = {
@@ -84,4 +88,38 @@ test('keeps rostered players visible when compact metadata is unavailable', () =
 
   assert.equal(team.bench[0].name, 'Player missing-player')
   assert.equal(team.bench[0].position, 'FLEX')
+})
+
+test('validates team summaries and tracks the server cooldown', () => {
+  const response = parseTeamSummaryResponse({
+    summary: {
+      identity: '  A deep receiving team.  ',
+      strengths: ['Receiver depth'],
+      gaps: ['Running back depth'],
+      targets: [{
+        player_id: 'free-agent',
+        name: 'Free Agent',
+        reason: 'Adds depth',
+      }],
+      strategy: ['Prioritize upside'],
+    },
+    generated_at: 1_000,
+    regenerate_after: 1_900,
+    server_time: 1_100,
+    cached: true,
+  })
+
+  assert.equal(response.summary.identity, 'A deep receiving team.')
+  assert.equal(teamSummaryCooldownSeconds(response, response.receivedAt), 800)
+  assert.equal(
+    teamSummaryCooldownSeconds(response, response.receivedAt + 800_000),
+    0,
+  )
+})
+
+test('rejects incomplete team summaries', () => {
+  assert.throws(
+    () => parseTeamSummaryResponse({ summary: {}, generated_at: 1, regenerate_after: 2, server_time: 1 }),
+    /identity/,
+  )
 })

@@ -20,6 +20,10 @@ class CorsHeadersTests(unittest.TestCase):
             headers = get_cors_headers(origin)
             self.assertEqual(headers["Access-Control-Allow-Origin"], origin)
             self.assertEqual(headers["Vary"], "Origin")
+            self.assertEqual(
+                headers["Access-Control-Allow-Methods"],
+                "GET, POST, OPTIONS",
+            )
 
     def test_allows_changing_deployment_domains_for_the_vercel_project(self):
         origin = "https://ff-pr9g97tcu-mikes-projects-e5f6e59b.vercel.app"

@@ -11,7 +11,8 @@ export const apiConfig = {
     weekly: `${API_BASE_URL}/weekly`,
     overall: `${API_BASE_URL}/overall`,
     leagueContext: `${API_BASE_URL}/league-context`,
-    players: `${API_BASE_URL}/players`
+    players: `${API_BASE_URL}/players`,
+    teamSummary: `${API_BASE_URL}/team-summary`,
   }
 }
 

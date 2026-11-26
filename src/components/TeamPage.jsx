@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { ArrowLeft, Users } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { useTeamRoster } from '../hooks/useTeamRoster'
+import TeamSummary from './TeamSummary'
 
 function RosterSection({ players, showProjectedPoints = false, title }) {
   if (players.length === 0) return null
@@ -44,6 +46,7 @@ function RosterSection({ players, showProjectedPoints = false, title }) {
 }
 
 export default function TeamPage({ rosterId, onBack }) {
+  const [activeTab, setActiveTab] = useState('roster')
   const { data: team, isLoading, error } = useTeamRoster(rosterId)
 
   return (
@@ -87,36 +90,81 @@ export default function TeamPage({ rosterId, onBack }) {
 
       {team && (
         <div className="space-y-6">
-          <Card>
-            <CardContent className="flex items-center gap-4 p-5 sm:p-6">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
-                <Users className="h-6 w-6" aria-hidden="true" />
-              </span>
-              <div className="min-w-0">
-                <h1 className="truncate text-2xl font-semibold tracking-tight">{team.teamName}</h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {[team.ownerName, `${team.playerCount} players`].filter(Boolean).join(' · ')}
-                </p>
+          <Card className="overflow-hidden">
+            <CardContent className="p-0">
+              <div className="flex items-center gap-4 p-5 sm:p-6">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
+                  <Users className="h-6 w-6" aria-hidden="true" />
+                </span>
+                <div className="min-w-0">
+                  <h1 className="truncate text-2xl font-semibold tracking-tight">{team.teamName}</h1>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {[team.ownerName, `${team.playerCount} players`].filter(Boolean).join(' · ')}
+                  </p>
+                </div>
+              </div>
+              <div
+                role="tablist"
+                aria-label="Team details"
+                className="grid grid-cols-2 border-t bg-muted/20 p-1"
+              >
+                {[
+                  { id: 'roster', label: 'Roster' },
+                  { id: 'insights', label: 'Insights' },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    id={`team-${tab.id}-tab`}
+                    aria-controls={`team-${tab.id}-panel`}
+                    aria-selected={activeTab === tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`min-h-10 rounded-xl px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                      activeTab === tab.id
+                        ? 'bg-card text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
               </div>
             </CardContent>
           </Card>
 
-          {team.playerCount === 0 ? (
-            <Card>
-              <CardContent className="py-10 text-center text-sm text-muted-foreground">
-                No players are currently assigned to this roster.
-              </CardContent>
-            </Card>
+          {activeTab === 'insights' ? (
+            <div
+              role="tabpanel"
+              id="team-insights-panel"
+              aria-labelledby="team-insights-tab"
+            >
+              <TeamSummary rosterId={team.id} />
+            </div>
           ) : (
-            <div className="space-y-6">
-              <RosterSection
-                title="Starting lineup"
-                players={team.starters}
-                showProjectedPoints
-              />
-              <RosterSection title="Bench" players={team.bench} showProjectedPoints />
-              <RosterSection title="Injured reserve" players={team.reserve} />
-              <RosterSection title="Taxi squad" players={team.taxi} />
+            <div
+              role="tabpanel"
+              id="team-roster-panel"
+              aria-labelledby="team-roster-tab"
+            >
+              {team.playerCount === 0 ? (
+                <Card>
+                  <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                    No players are currently assigned to this roster.
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-6">
+                  <RosterSection
+                    title="Starting lineup"
+                    players={team.starters}
+                    showProjectedPoints
+                  />
+                  <RosterSection title="Bench" players={team.bench} showProjectedPoints />
+                  <RosterSection title="Injured reserve" players={team.reserve} />
+                  <RosterSection title="Taxi squad" players={team.taxi} />
+                </div>
+              )}
             </div>
           )}
         </div>
