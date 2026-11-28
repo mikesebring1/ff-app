@@ -61,6 +61,13 @@ test('builds a complete roster grouped by lineup status', () => {
       rb: 11.7,
       wr: 16.1,
     },
+    matchups: [{
+      roster_id: 2,
+      players_points: { qb: 0, rb: 0, wr: 19.5 },
+    }],
+    playerStats: {
+      qb: { gp: 1 },
+    },
   })
 
   assert.equal(team.teamName, 'The Winners')
@@ -68,8 +75,11 @@ test('builds a complete roster grouped by lineup status', () => {
   assert.equal(team.playerCount, 5)
   assert.deepEqual(team.starters.map((player) => player.id), ['qb', 'wr'])
   assert.deepEqual(team.starters.map((player) => player.projectedPoints), [24.36, 16.1])
+  assert.deepEqual(team.starters.map((player) => player.actualPoints), [0, 19.5])
+  assert.deepEqual(team.starters.map((player) => player.hasPlayed), [true, true])
   assert.deepEqual(team.bench.map((player) => player.id), ['rb'])
   assert.equal(team.bench[0].projectedPoints, 11.7)
+  assert.equal(team.bench[0].hasPlayed, false)
   assert.deepEqual(team.reserve.map((player) => player.id), ['ir'])
   assert.deepEqual(team.taxi.map((player) => player.id), ['taxi'])
 })

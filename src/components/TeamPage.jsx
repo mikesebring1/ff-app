@@ -33,11 +33,22 @@ function RosterSection({ players, showProjectedPoints = false, title }) {
                 <span className="block text-xs text-muted-foreground">{player.nflTeam}</span>
               )}
             </span>
-            <span className="text-xs font-medium tabular-nums text-muted-foreground">
-              {showProjectedPoints
-                ? `${player.projectedPoints.toFixed(1)} pts`
-                : player.nflTeam}
-            </span>
+            {showProjectedPoints ? (
+              <span className="flex flex-col items-end tabular-nums">
+                {player.hasPlayed && (
+                  <span className="text-sm font-semibold text-foreground">
+                    {player.actualPoints.toFixed(2)} pts
+                  </span>
+                )}
+                <span className="text-xs font-medium text-muted-foreground">
+                  {player.projectedPoints.toFixed(1)} projected
+                </span>
+              </span>
+            ) : (
+              <span className="text-xs font-medium text-muted-foreground">
+                {player.nflTeam}
+              </span>
+            )}
           </div>
         ))}
       </div>
