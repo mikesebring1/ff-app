@@ -203,3 +203,34 @@ export const useSleeperProjections = ({ week, enabled = true } = {}) => {
     refetchOnWindowFocus: false,
   })
 }
+
+export const useSleeperStats = ({ week, enabled = true } = {}) => {
+  const { data: leagueContext } = useLeagueContext()
+  const season = leagueContext?.season
+  const seasonType = leagueContext?.season_type
+  const selectedWeek = normalizeWeek(week)
+  const activeWeek = normalizeWeek(leagueContext?.week)
+
+  return useQuery({
+    enabled: isProjectionQueryEligible({
+      enabled,
+      season,
+      seasonType,
+      selectedWeek,
+    }),
+    queryKey: ['sleeper-stats', season, seasonType, selectedWeek],
+    queryFn: ({ signal }) => fetchSleeperJson(
+      `/stats/nfl/${seasonType}/${season}/${selectedWeek}`,
+      {
+        timeout: 15_000,
+        signal,
+        resource: 'stats',
+        queryKey: `${season}:${seasonType}:${selectedWeek}`,
+      },
+    ),
+    retry: 3,
+    staleTime: selectedWeek === activeWeek ? 5 * 60 * 1000 : 24 * 60 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  })
+}

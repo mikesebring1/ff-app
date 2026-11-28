@@ -44,6 +44,8 @@ export function buildTeamRoster({
   users = [],
   players = {},
   projections = {},
+  matchups = [],
+  playerStats = {},
 }) {
   const normalizedRosterId = String(rosterId ?? '')
   const roster = rosters.find(
@@ -55,6 +57,10 @@ export function buildTeamRoster({
     (candidate) => String(candidate?.user_id) === String(roster.owner_id),
   )
   const teamNames = buildRosterTeamNames(rosters, users)
+  const matchup = matchups.find(
+    (candidate) => String(candidate?.roster_id) === normalizedRosterId,
+  )
+  const actualPointsByPlayer = matchup?.players_points ?? {}
   const starterIds = new Set(normalizePlayerIds(roster.starters))
   const reserveIds = new Set(normalizePlayerIds(roster.reserve))
   const taxiIds = new Set(normalizePlayerIds(roster.taxi))
@@ -74,6 +80,17 @@ export function buildTeamRoster({
 
   playerIds.forEach((playerId) => {
     const player = players[playerId]
+    const hasMatchupScore = Object.prototype.hasOwnProperty.call(
+      actualPointsByPlayer,
+      playerId,
+    )
+    const actualPoints = Number(actualPointsByPlayer[playerId] ?? 0)
+    const stats = playerStats[playerId]
+    const hasPlayed = hasMatchupScore && (
+      Number(stats?.gp ?? 0) > 0
+      || Number(stats?.gms_active ?? 0) > 0
+      || actualPoints !== 0
+    )
     const entry = {
       id: playerId,
       name: playerName(player, playerId),
@@ -82,6 +99,8 @@ export function buildTeamRoster({
       projectedPoints: Number.isFinite(Number(projections[playerId]))
         ? Number(projections[playerId])
         : 0,
+      actualPoints: Number.isFinite(actualPoints) ? actualPoints : 0,
+      hasPlayed,
     }
 
     if (reserveIds.has(playerId)) {
